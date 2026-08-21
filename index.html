@@ -5,17 +5,84 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>名刺ブックマーク</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: linear-gradient(160deg, #fff7ed 0%, #fef3f2 35%, #eff6ff 70%, #f0fdfa 100%);
+    }
+
+    /* 一覧カード（動的生成のため <script type="module"> は変更せず、
+       #cards 配下の構造に対して<head>側のCSSでNEXUAトーンを適用する） */
+    #cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #cards > div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid #ffffff;
+      border-radius: 1rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      padding: 1rem;
+      margin-bottom: 0;
+    }
+    #cards > div > a,
+    #cards > div > span:first-child {
+      font-weight: 700;
+      color: #262626;
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    #cards > div > a:hover {
+      color: #fb7185;
+      text-decoration: underline;
+    }
+    #cards > div > span:last-of-type {
+      font-size: 0.7rem;
+      color: #a3a3a3;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #cards > div > button {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #f43f5e;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 9999px;
+      padding: 0.35rem 0.75rem;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    #cards > div > button:hover {
+      background: #ffe4e6;
+    }
+  </style>
 </head>
-<body>
-  <div id="app">
-    <button id="login-btn" style="display:none">Googleでログイン</button>
-    <p id="status">読み込み中...</p>
+<body class="min-h-screen text-neutral-800">
+  <div id="app" class="max-w-md mx-auto px-6 py-12">
+    <button id="login-btn" style="display:none" class="w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all">Googleでログイン</button>
+    <p id="status" class="text-sm text-neutral-500 text-center mb-6">読み込み中...</p>
     <div id="list-ui" style="display:none">
-      <input id="search" type="text" placeholder="名前で検索" />
-      <select id="sort">
-        <option value="newest">新しい順</option>
-        <option value="oldest">古い順</option>
-      </select>
+      <div class="flex flex-col sm:flex-row gap-2 mb-4">
+        <input id="search" type="text" placeholder="名前で検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+        <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
+          <option value="newest">新しい順</option>
+          <option value="oldest">古い順</option>
+        </select>
+      </div>
       <div id="cards"></div>
     </div>
   </div>
