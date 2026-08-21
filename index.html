@@ -46,21 +46,49 @@
       loginBtn.style.display = 'none';
     }
 
+    function isSafeHttpUrl(url) {
+      try {
+        const parsed = new URL(url, location.href);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }
+
     function renderCards() {
       const filtered = filterAndSort(allBookmarks, searchEl.value, sortEl.value);
       cardsEl.innerHTML = '';
       for (const b of filtered) {
         const card = document.createElement('div');
-        card.innerHTML = `
-          <a href="${b.url}" target="_blank" rel="noopener noreferrer">${b.name || b.url}</a>
-          <span>${b.tags.join('・')}</span>
-          <button data-row="${b.rowIndex}">削除</button>
-        `;
-        card.querySelector('button').addEventListener('click', async () => {
+
+        const linkText = b.name || b.url;
+        if (isSafeHttpUrl(b.url)) {
+          const link = document.createElement('a');
+          link.href = b.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = linkText;
+          card.appendChild(link);
+        } else {
+          const linkFallback = document.createElement('span');
+          linkFallback.textContent = linkText;
+          card.appendChild(linkFallback);
+        }
+
+        const tagsSpan = document.createElement('span');
+        tagsSpan.textContent = b.tags.join('・');
+        card.appendChild(tagsSpan);
+
+        const button = document.createElement('button');
+        button.dataset.row = b.rowIndex;
+        button.textContent = '削除';
+        button.addEventListener('click', async () => {
           await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
           allBookmarks = allBookmarks.filter(x => x.rowIndex !== b.rowIndex);
           renderCards();
         });
+        card.appendChild(button);
+
         cardsEl.appendChild(card);
       }
     }
