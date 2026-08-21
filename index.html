@@ -4,8 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>名刺ブックマーク</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <p>準備中です。</p>
+  <div id="app">
+    <button id="login-btn" style="display:none">Googleでログイン</button>
+    <p id="status">読み込み中...</p>
+  </div>
+  <script type="module">
+    import { initGoogleAuth, requestLogin } from './src/auth.js';
+
+    const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ACTUAL_CLIENT_ID'; // Step 3で実際の値に差し替える
+
+    window.addEventListener('load', () => {
+      initGoogleAuth(GOOGLE_CLIENT_ID, (token) => {
+        document.getElementById('status').textContent = 'ログインしました';
+        window.__accessToken = token; // Task 3以降でこのグローバルを使う
+      });
+      document.getElementById('login-btn').style.display = 'inline-block';
+      document.getElementById('status').textContent = 'ログインしてください';
+    });
+    document.getElementById('login-btn').addEventListener('click', () => requestLogin());
+  </script>
 </body>
 </html>
