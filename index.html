@@ -12,19 +12,39 @@
     <p id="status">読み込み中...</p>
   </div>
   <script type="module">
+    import { parseBookmarkParams } from './src/logic.js';
     import { initGoogleAuth, requestLogin } from './src/auth.js';
+    import { findSheet, createSheet, appendBookmark } from './src/sheets.js';
 
-    const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ACTUAL_CLIENT_ID'; // Step 3で実際の値に差し替える
+    const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ACTUAL_CLIENT_ID';
+    const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
+    const statusEl = document.getElementById('status');
+    const loginBtn = document.getElementById('login-btn');
+
+    async function saveFlow(token) {
+      statusEl.textContent = '保存しています...';
+      let sheet = await findSheet(token);
+      if (!sheet) sheet = await createSheet(token);
+      await appendBookmark(token, sheet.spreadsheetId, bookmark);
+      statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
+      loginBtn.style.display = 'none';
+    }
 
     window.addEventListener('load', () => {
       initGoogleAuth(GOOGLE_CLIENT_ID, (token) => {
-        document.getElementById('status').textContent = 'ログインしました';
-        window.__accessToken = token; // Task 3以降でこのグローバルを使う
+        window.__accessToken = token;
+        if (bookmark) {
+          saveFlow(token);
+        } else {
+          statusEl.textContent = 'ログインしました';
+        }
       });
-      document.getElementById('login-btn').style.display = 'inline-block';
-      document.getElementById('status').textContent = 'ログインしてください';
+      loginBtn.style.display = 'inline-block';
+      statusEl.textContent = bookmark
+        ? `「${bookmark.name || bookmark.url}」を保存します。ログインしてください`
+        : 'ログインしてください';
     });
-    document.getElementById('login-btn').addEventListener('click', () => requestLogin());
+    loginBtn.addEventListener('click', () => requestLogin());
   </script>
 </body>
 </html>
