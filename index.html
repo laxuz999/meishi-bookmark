@@ -106,11 +106,17 @@
 
     async function saveFlow(token) {
       statusEl.textContent = '保存しています...';
-      let sheet = await findSheet(token);
-      if (!sheet) sheet = await createSheet(token);
-      await appendBookmark(token, sheet.spreadsheetId, bookmark);
-      statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
-      loginBtn.style.display = 'none';
+      try {
+        let sheet = await findSheet(token);
+        if (!sheet) sheet = await createSheet(token);
+        await appendBookmark(token, sheet.spreadsheetId, bookmark);
+        statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
+        loginBtn.style.display = 'none';
+      } catch (err) {
+        statusEl.textContent = '保存できませんでした。もう一度お試しください。';
+        loginBtn.style.display = 'inline-block';
+        loginBtn.textContent = 'もう一度試す';
+      }
     }
 
     function isSafeHttpUrl(url) {
@@ -162,15 +168,19 @@
 
     async function listFlow(token) {
       statusEl.textContent = '読み込んでいます...';
-      currentSheet = await findSheet(token);
-      if (!currentSheet) {
-        statusEl.textContent = 'まだ保存された名刺がありません';
-        return;
+      try {
+        currentSheet = await findSheet(token);
+        if (!currentSheet) {
+          statusEl.textContent = 'まだ保存された名刺がありません';
+          return;
+        }
+        allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
+        statusEl.style.display = 'none';
+        listUi.style.display = 'block';
+        renderCards();
+      } catch (err) {
+        statusEl.textContent = '読み込めませんでした。もう一度お試しください。';
       }
-      allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
-      statusEl.style.display = 'none';
-      listUi.style.display = 'block';
-      renderCards();
     }
 
     window.addEventListener('load', () => {
@@ -181,6 +191,8 @@
         } else {
           listFlow(token);
         }
+      }, () => {
+        statusEl.textContent = 'ログインできませんでした。もう一度お試しください。';
       });
       loginBtn.style.display = 'inline-block';
       statusEl.textContent = bookmark
