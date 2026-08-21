@@ -74,6 +74,7 @@
 <body class="min-h-screen text-neutral-800">
   <div id="app" class="max-w-md mx-auto px-6 py-12">
     <p id="status" class="text-sm text-neutral-500 text-center mb-6">読み込み中...</p>
+    <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleでバックアップ・他の端末と同期する</button>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
@@ -97,6 +98,7 @@
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
+    const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
     const listUi = document.getElementById('list-ui');
     const cardsEl = document.getElementById('cards');
@@ -122,7 +124,8 @@
     // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
     function saveFlow() {
       saveLocal(bookmark);
-      statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
+      statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。`;
+      listLinkEl.style.display = 'block';
     }
 
     // 「Googleでバックアップ・同期する」を押した人だけがここに来る
