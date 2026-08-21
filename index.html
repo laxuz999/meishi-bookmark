@@ -21,9 +21,8 @@
     }
     #cards > div {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+      flex-direction: column;
+      gap: 0.35rem;
       background: rgba(255, 255, 255, 0.85);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -33,8 +32,15 @@
       padding: 1rem;
       margin-bottom: 0;
     }
-    #cards > div > a,
-    #cards > div > span:first-child {
+    #cards .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+    }
+    #cards .row > a,
+    #cards .row > span:first-child {
       font-weight: 700;
       color: #262626;
       text-decoration: none;
@@ -44,17 +50,17 @@
       flex: 1;
       min-width: 0;
     }
-    #cards > div > a:hover {
+    #cards .row > a:hover {
       color: #fb7185;
       text-decoration: underline;
     }
-    #cards > div > span:last-of-type {
+    #cards .row > span:last-of-type {
       font-size: 0.7rem;
       color: #a3a3a3;
       white-space: nowrap;
       flex-shrink: 0;
     }
-    #cards > div > button {
+    #cards .row > button {
       font-size: 0.7rem;
       font-weight: 700;
       color: #f43f5e;
@@ -66,14 +72,29 @@
       cursor: pointer;
       transition: background-color 0.15s ease;
     }
-    #cards > div > button:hover {
+    #cards .row > button:hover {
       background: #ffe4e6;
+    }
+    #cards .memo {
+      font-size: 0.7rem;
+      color: #a3a3a3;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   </style>
 </head>
 <body class="min-h-screen text-neutral-800">
   <div id="app" class="max-w-md mx-auto px-6 py-12">
     <p id="status" class="text-sm text-neutral-500 text-center mb-4">読み込み中...</p>
+    <div id="memo-box" style="display:none" class="mb-6">
+      <label for="memo-input" class="block text-xs text-neutral-500 mb-1.5">ひとことメモ（会った場所など・任意）</label>
+      <textarea id="memo-input" rows="2" placeholder="例：〇〇展示会で名刺交換" class="w-full px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
+      <div class="mt-2 flex items-center gap-2">
+        <button id="memo-save-btn" class="px-4 py-2 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">メモを保存</button>
+        <span id="memo-saved-msg" style="display:none" class="text-xs text-green-600">✓ 保存しました</span>
+      </div>
+    </div>
     <div id="home-screen-notice" style="display:none" class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed">
       <strong>📱 iPhoneでホーム画面に追加する場合</strong><br><br>
       ①画面下部（または上部）の<strong>共有ボタン</strong>（四角に↑のアイコン）をタップ<br>
@@ -120,12 +141,16 @@
     import { initGoogleAuth, requestLogin } from './src/auth.js';
     import { findSheet, createSheet, appendBookmark, listBookmarks, deleteBookmark } from './src/sheets.js';
     import { filterAndSort } from './src/render.js';
-    import { saveLocal, listLocal, deleteLocal } from './src/storage.js';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
+    const memoBoxEl = document.getElementById('memo-box');
+    const memoInputEl = document.getElementById('memo-input');
+    const memoSaveBtn = document.getElementById('memo-save-btn');
+    const memoSavedMsgEl = document.getElementById('memo-saved-msg');
     const homeScreenNoticeEl = document.getElementById('home-screen-notice');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
@@ -154,11 +179,21 @@
     }
 
     // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
+    // ひとことメモは任意入力なので、保存自体はメモなしで即完了させる
     function saveFlow() {
-      saveLocal(bookmark);
+      const saved = saveLocal(bookmark);
       statusEl.textContent = `「${bookmark.name || '名前未設定の名刺'}」を保存しました。`;
+      memoBoxEl.style.display = 'block';
       homeScreenNoticeEl.style.display = 'block';
       listLinkEl.style.display = 'block';
+
+      memoInputEl.addEventListener('input', () => {
+        memoSavedMsgEl.style.display = 'none';
+      });
+      memoSaveBtn.addEventListener('click', () => {
+        updateLocalMemo(saved.id, memoInputEl.value.trim());
+        memoSavedMsgEl.style.display = 'inline';
+      });
     }
 
     // 「Googleでバックアップ・同期する」を押した人だけがここに来る
@@ -203,6 +238,9 @@
       cardsEl.innerHTML = '';
       for (const b of filtered) {
         const card = document.createElement('div');
+        const row = document.createElement('div');
+        row.className = 'row';
+        card.appendChild(row);
 
         const linkText = b.name || '（名前未設定の名刺）';
         if (isSafeHttpUrl(b.url)) {
@@ -211,20 +249,27 @@
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
           link.textContent = linkText;
-          card.appendChild(link);
+          row.appendChild(link);
         } else {
           const linkFallback = document.createElement('span');
           linkFallback.textContent = linkText;
-          card.appendChild(linkFallback);
+          row.appendChild(linkFallback);
         }
 
         const tagsSpan = document.createElement('span');
         tagsSpan.textContent = b.tags.join('・');
-        card.appendChild(tagsSpan);
+        row.appendChild(tagsSpan);
 
         const dateSpan = document.createElement('span');
         dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
-        card.appendChild(dateSpan);
+        row.appendChild(dateSpan);
+
+        if (b.memo) {
+          const memoDiv = document.createElement('div');
+          memoDiv.className = 'memo';
+          memoDiv.textContent = b.memo;
+          card.appendChild(memoDiv);
+        }
 
         const button = document.createElement('button');
         button.textContent = '削除';
@@ -244,7 +289,7 @@
             alert('削除できませんでした。もう一度お試しください。');
           }
         });
-        card.appendChild(button);
+        row.appendChild(button);
 
         cardsEl.appendChild(card);
       }

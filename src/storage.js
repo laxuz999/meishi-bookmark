@@ -22,14 +22,17 @@ function generateId() {
 
 export function saveLocal(bookmark) {
   const list = readAll();
-  list.push({
+  const entry = {
     id: generateId(),
     url: bookmark.url,
     name: bookmark.name || '',
     tags: bookmark.tags || [],
+    memo: bookmark.memo || '',
     savedAt: new Date().toISOString(),
-  });
+  };
+  list.push(entry);
   writeAll(list);
+  return entry;
 }
 
 export function listLocal() {
@@ -38,4 +41,13 @@ export function listLocal() {
 
 export function deleteLocal(id) {
   writeAll(readAll().filter((b) => b.id !== id));
+}
+
+// 保存後に「ひとことメモ」だけを追記・上書きするための更新関数
+export function updateLocalMemo(id, memo) {
+  const list = readAll();
+  const idx = list.findIndex((b) => b.id === id);
+  if (idx === -1) return;
+  list[idx] = { ...list[idx], memo };
+  writeAll(list);
 }

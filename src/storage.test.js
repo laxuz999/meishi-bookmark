@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { saveLocal, listLocal, deleteLocal } from './storage.js';
+import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './storage.js';
 
 // node:testにはlocalStorageがないので簡易モックを用意
 beforeEach(() => {
@@ -55,4 +55,25 @@ test('deleteLocal: 指定したidのブックマークだけ削除する', () =>
 test('listLocal: 壊れたJSONが入っていても空配列を返す（クラッシュしない）', () => {
   localStorage.setItem('meishi_bookmarks', '{invalid json');
   assert.deepEqual(listLocal(), []);
+});
+
+test('saveLocal: memoを省略すると空文字になり、返り値は保存したエントリそのもの', () => {
+  const entry = saveLocal({ url: 'https://nexua.tech/#zz1', name: '山田', tags: [] });
+  assert.equal(entry.memo, '');
+  assert.equal(listLocal()[0].id, entry.id);
+});
+
+test('updateLocalMemo: 指定したidのメモだけを更新する', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  const target = saveLocal({ url: 'https://nexua.tech/#zz2', name: 'B', tags: [] });
+  updateLocalMemo(target.id, '展示会で交換');
+  const list = listLocal();
+  assert.equal(list.find(b => b.id === target.id).memo, '展示会で交換');
+  assert.equal(list.find(b => b.name === 'A').memo, '');
+});
+
+test('updateLocalMemo: 存在しないidを渡してもクラッシュしない', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  assert.doesNotThrow(() => updateLocalMemo('no-such-id', 'メモ'));
+  assert.equal(listLocal().length, 1);
 });

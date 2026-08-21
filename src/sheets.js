@@ -38,10 +38,10 @@ export async function createSheet(token) {
   const spreadsheetId = data.spreadsheetId;
   const gid = data.sheets[0].properties.sheetId;
 
-  const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:D1?valueInputOption=RAW`, {
+  const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:E1?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [['url', 'name', 'tags', 'savedAt']] }),
+    body: JSON.stringify({ values: [['url', 'name', 'tags', 'savedAt', 'memo']] }),
   });
   await checkOk(headerRes);
 
@@ -49,8 +49,8 @@ export async function createSheet(token) {
 }
 
 export async function appendBookmark(token, spreadsheetId, bookmark) {
-  const row = [bookmark.url, bookmark.name, (bookmark.tags || []).join(','), new Date().toISOString()];
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:D:append?valueInputOption=RAW`, {
+  const row = [bookmark.url, bookmark.name, (bookmark.tags || []).join(','), new Date().toISOString(), bookmark.memo || ''];
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:E:append?valueInputOption=RAW`, {
     method: 'POST',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] }),
@@ -59,7 +59,7 @@ export async function appendBookmark(token, spreadsheetId, bookmark) {
 }
 
 export async function listBookmarks(token, spreadsheetId) {
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A2:D`, {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A2:E`, {
     headers: authHeader(token),
   });
   await checkOk(res);
@@ -71,6 +71,7 @@ export async function listBookmarks(token, spreadsheetId) {
     name: row[1] || '',
     tags: (row[2] || '').split(',').map(t => t.trim()).filter(Boolean),
     savedAt: row[3] || '',
+    memo: row[4] || '',
   }));
 }
 
