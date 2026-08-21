@@ -196,11 +196,14 @@
     </div>
   </div>
   <script type="module">
-    import { parseBookmarkParams } from './src/logic.js';
-    import { initGoogleAuth, requestLogin } from './src/auth.js';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './src/sheets.js';
-    import { filterAndSort } from './src/render.js';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js';
+    // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
+    // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
+    // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
+    import { parseBookmarkParams } from './src/logic.js?v=20260822';
+    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260822';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './src/sheets.js?v=20260822';
+    import { filterAndSort } from './src/render.js?v=20260822';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
