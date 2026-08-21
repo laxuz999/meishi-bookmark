@@ -75,12 +75,71 @@
     #cards .row > button:hover {
       background: #ffe4e6;
     }
-    #cards .memo {
+    #cards .memo-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
+    }
+    #cards .memo-text {
       font-size: 0.7rem;
       color: #a3a3a3;
       line-height: 1.4;
       white-space: pre-wrap;
       word-break: break-word;
+      flex: 1;
+      min-width: 0;
+    }
+    #cards .memo-text.placeholder {
+      color: #d4d4d4;
+      font-style: italic;
+    }
+    #cards .memo-edit-btn {
+      font-size: 0.65rem;
+      color: #a3a3a3;
+      background: none;
+      border: none;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+      text-decoration: underline;
+    }
+    #cards .memo-edit-btn:hover {
+      color: #fb7185;
+    }
+    #cards .memo-edit-area {
+      width: 100%;
+    }
+    #cards .memo-edit-area textarea {
+      width: 100%;
+      font-size: 0.75rem;
+      padding: 0.5rem;
+      border: 1px solid #fecdd3;
+      border-radius: 0.5rem;
+      resize: none;
+      font-family: inherit;
+    }
+    #cards .memo-edit-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+    }
+    #cards .memo-edit-actions button {
+      font-size: 0.65rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      border: none;
+    }
+    #cards .memo-save-btn {
+      background: #fb7185;
+      color: white;
+    }
+    #cards .memo-cancel-btn {
+      background: none;
+      border: 1px solid #e5e5e5 !important;
+      color: #a3a3a3;
     }
   </style>
 </head>
@@ -139,7 +198,7 @@
   <script type="module">
     import { parseBookmarkParams } from './src/logic.js';
     import { initGoogleAuth, requestLogin } from './src/auth.js';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, deleteBookmark } from './src/sheets.js';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './src/sheets.js';
     import { filterAndSort } from './src/render.js';
     import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js';
 
@@ -264,12 +323,59 @@
         dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
         row.appendChild(dateSpan);
 
-        if (b.memo) {
-          const memoDiv = document.createElement('div');
-          memoDiv.className = 'memo';
-          memoDiv.textContent = b.memo;
-          card.appendChild(memoDiv);
-        }
+        // ひとことメモ（後から編集可能）
+        const memoRow = document.createElement('div');
+        memoRow.className = 'memo-row';
+        const memoText = document.createElement('span');
+        memoText.className = 'memo-text' + (b.memo ? '' : ' placeholder');
+        memoText.textContent = b.memo || 'メモなし';
+        const memoEditBtn = document.createElement('button');
+        memoEditBtn.className = 'memo-edit-btn';
+        memoEditBtn.textContent = b.memo ? '編集' : '+ メモを追加';
+        memoRow.appendChild(memoText);
+        memoRow.appendChild(memoEditBtn);
+        card.appendChild(memoRow);
+
+        memoEditBtn.addEventListener('click', () => {
+          const editArea = document.createElement('div');
+          editArea.className = 'memo-edit-area';
+          const textarea = document.createElement('textarea');
+          textarea.rows = 2;
+          textarea.value = b.memo || '';
+          const actions = document.createElement('div');
+          actions.className = 'memo-edit-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'memo-save-btn';
+          saveBtn.textContent = '保存';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'memo-cancel-btn';
+          cancelBtn.textContent = 'キャンセル';
+          actions.appendChild(saveBtn);
+          actions.appendChild(cancelBtn);
+          editArea.appendChild(textarea);
+          editArea.appendChild(actions);
+          card.replaceChild(editArea, memoRow);
+          textarea.focus();
+
+          cancelBtn.addEventListener('click', () => {
+            card.replaceChild(memoRow, editArea);
+          });
+          saveBtn.addEventListener('click', async () => {
+            const newMemo = textarea.value.trim();
+            try {
+              if (syncMode === 'google') {
+                await updateMemo(window.__accessToken, currentSheet.spreadsheetId, b.rowIndex, newMemo);
+                allBookmarks = allBookmarks.map(x => x.rowIndex === b.rowIndex ? { ...x, memo: newMemo } : x);
+              } else {
+                updateLocalMemo(b.id, newMemo);
+                allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, memo: newMemo } : x);
+              }
+              renderCards();
+            } catch (err) {
+              alert('メモを保存できませんでした。もう一度お試しください。');
+            }
+          });
+        });
 
         const button = document.createElement('button');
         button.textContent = '削除';

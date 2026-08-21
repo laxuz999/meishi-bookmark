@@ -75,6 +75,15 @@ export async function listBookmarks(token, spreadsheetId) {
   }));
 }
 
+export async function updateMemo(token, spreadsheetId, rowIndex, memo) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!E${rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [[memo]] }),
+  });
+  await checkOk(res);
+}
+
 export async function deleteBookmark(token, spreadsheetId, gid, rowIndex) {
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
     method: 'POST',

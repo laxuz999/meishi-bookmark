@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { findSheet, createSheet, appendBookmark, listBookmarks, deleteBookmark } from './sheets.js';
+import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './sheets.js';
 
 let originalFetch;
 let calls;
@@ -102,6 +102,16 @@ test('findSheet: 401エラーの場合はエラーをthrowする', async () => {
     () => findSheet('tok'),
     /Google API error \(401\): Invalid Credentials/
   );
+});
+
+test('updateMemo: 指定行のE列だけを更新するAPIを呼ぶ', async () => {
+  mockFetch({});
+  await updateMemo('tok', 'sheet123', 3, '交流会で交換');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /values\/bookmarks!E3/);
+  assert.equal(calls[0].options.method, 'PUT');
+  const body = JSON.parse(calls[0].options.body);
+  assert.deepEqual(body.values, [['交流会で交換']]);
 });
 
 test('deleteBookmark: 行削除のbatchUpdateを呼ぶ', async () => {
