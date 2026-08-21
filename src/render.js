@@ -1,7 +1,10 @@
 export function filterAndSort(bookmarks, query, sortOrder) {
   const q = (query || '').trim().toLowerCase();
   let result = q
-    ? bookmarks.filter(b => b.name.toLowerCase().includes(q))
+    ? bookmarks.filter(b => {
+        const haystack = [b.name, ...(b.tags || []), b.memo || ''].join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
     : bookmarks.slice();
   result.sort((a, b) => {
     const diff = new Date(a.savedAt) - new Date(b.savedAt);
