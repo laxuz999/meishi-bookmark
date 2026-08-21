@@ -73,9 +73,9 @@
 </head>
 <body class="min-h-screen text-neutral-800">
   <div id="app" class="max-w-md mx-auto px-6 py-12">
-    <button id="login-btn" style="display:none" class="w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all">Googleでログイン</button>
     <p id="status" class="text-sm text-neutral-500 text-center mb-6">読み込み中...</p>
     <div id="list-ui" style="display:none">
+      <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleでバックアップ・他の端末と同期する</button>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前で検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -91,11 +91,13 @@
     import { initGoogleAuth, requestLogin } from './src/auth.js';
     import { findSheet, createSheet, appendBookmark, listBookmarks, deleteBookmark } from './src/sheets.js';
     import { filterAndSort } from './src/render.js';
+    import { saveLocal, listLocal, deleteLocal } from './src/storage.js';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
+    const GOOGLE_LINKED_KEY = 'meishi_google_linked';
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
-    const loginBtn = document.getElementById('login-btn');
+    const backupBtn = document.getElementById('backup-btn');
     const listUi = document.getElementById('list-ui');
     const cardsEl = document.getElementById('cards');
     const searchEl = document.getElementById('search');
@@ -103,19 +105,51 @@
 
     let currentSheet = null;
     let allBookmarks = [];
+    // 一覧の表示元。'local' = このブラウザのlocalStorage、'google' = Googleスプレッドシート
+    let syncMode = 'local';
 
-    async function saveFlow(token) {
-      statusEl.textContent = '保存しています...';
+    function isGoogleLinked() {
+      return localStorage.getItem(GOOGLE_LINKED_KEY) === '1';
+    }
+
+    function resetBackupBtn() {
+      backupBtn.disabled = false;
+      backupBtn.textContent = isGoogleLinked()
+        ? 'タップしてGoogle側の一覧を表示'
+        : 'Googleでバックアップ・他の端末と同期する';
+    }
+
+    // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
+    function saveFlow() {
+      saveLocal(bookmark);
+      statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
+    }
+
+    // 「Googleでバックアップ・同期する」を押した人だけがここに来る
+    async function backupFlow(token) {
+      window.__accessToken = token;
+      backupBtn.disabled = true;
+      backupBtn.textContent = '連携しています...';
       try {
         let sheet = await findSheet(token);
         if (!sheet) sheet = await createSheet(token);
-        await appendBookmark(token, sheet.spreadsheetId, bookmark);
-        statusEl.textContent = `「${bookmark.name || bookmark.url}」を保存しました。このタブは閉じて大丈夫です。`;
-        loginBtn.style.display = 'none';
+        currentSheet = sheet;
+
+        if (!isGoogleLinked()) {
+          // 初回連携: それまでこの端末に貯まっていたローカルデータをまとめてアップロード
+          for (const b of listLocal()) {
+            await appendBookmark(token, sheet.spreadsheetId, b);
+          }
+          localStorage.setItem(GOOGLE_LINKED_KEY, '1');
+        }
+
+        allBookmarks = await listBookmarks(token, sheet.spreadsheetId);
+        syncMode = 'google';
+        backupBtn.textContent = 'Googleと同期済みです';
+        renderCards();
       } catch (err) {
-        statusEl.textContent = '保存できませんでした。もう一度お試しください。';
-        loginBtn.style.display = 'inline-block';
-        loginBtn.textContent = 'もう一度試す';
+        resetBackupBtn();
+        alert('Google連携に失敗しました。もう一度お試しください。');
       }
     }
 
@@ -157,14 +191,18 @@
         card.appendChild(dateSpan);
 
         const button = document.createElement('button');
-        button.dataset.row = b.rowIndex;
         button.textContent = '削除';
         button.addEventListener('click', async () => {
           try {
-            await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
-            allBookmarks = allBookmarks
-              .filter(x => x.rowIndex !== b.rowIndex)
-              .map(x => x.rowIndex > b.rowIndex ? { ...x, rowIndex: x.rowIndex - 1 } : x);
+            if (syncMode === 'google') {
+              await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
+              allBookmarks = allBookmarks
+                .filter(x => x.rowIndex !== b.rowIndex)
+                .map(x => x.rowIndex > b.rowIndex ? { ...x, rowIndex: x.rowIndex - 1 } : x);
+            } else {
+              deleteLocal(b.id);
+              allBookmarks = allBookmarks.filter(x => x.id !== b.id);
+            }
             renderCards();
           } catch (err) {
             alert('削除できませんでした。もう一度お試しください。');
@@ -176,40 +214,30 @@
       }
     }
 
-    async function listFlow(token) {
-      statusEl.textContent = '読み込んでいます...';
-      try {
-        currentSheet = await findSheet(token);
-        if (!currentSheet) {
-          statusEl.textContent = 'まだ保存された名刺がありません';
-          return;
-        }
-        allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
-        statusEl.style.display = 'none';
-        listUi.style.display = 'block';
-        renderCards();
-      } catch (err) {
-        statusEl.textContent = '読み込めませんでした。もう一度お試しください。';
-      }
+    // 一覧モード: まずこの端末のローカルデータを表示するだけ（ログイン不要）
+    function listFlow() {
+      allBookmarks = listLocal();
+      syncMode = 'local';
+      statusEl.style.display = 'none';
+      listUi.style.display = 'block';
+      renderCards();
+
+      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, resetBackupBtn);
+      resetBackupBtn();
     }
 
     window.addEventListener('load', () => {
-      initGoogleAuth(GOOGLE_CLIENT_ID, (token) => {
-        window.__accessToken = token;
-        if (bookmark) {
-          saveFlow(token);
-        } else {
-          listFlow(token);
-        }
-      }, () => {
-        statusEl.textContent = 'ログインできませんでした。もう一度お試しください。';
-      });
-      loginBtn.style.display = 'inline-block';
-      statusEl.textContent = bookmark
-        ? `「${bookmark.name || bookmark.url}」を保存します。ログインしてください`
-        : 'ログインしてください';
+      if (bookmark) {
+        saveFlow();
+      } else {
+        listFlow();
+      }
     });
-    loginBtn.addEventListener('click', () => requestLogin());
+    backupBtn.addEventListener('click', () => {
+      backupBtn.disabled = true;
+      backupBtn.textContent = '連携しています...';
+      requestLogin();
+    });
     searchEl.addEventListener('input', renderCards);
     sortEl.addEventListener('change', renderCards);
   </script>
