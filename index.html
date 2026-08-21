@@ -274,6 +274,20 @@
             await appendBookmark(token, sheet.spreadsheetId, b);
           }
           localStorage.setItem(GOOGLE_LINKED_KEY, '1');
+        } else {
+          // 2回目以降の同期: 前回の同期以降にこの端末だけで加わった変更
+          // （新規保存・メモ編集）をGoogle側へ反映してから取得する。
+          // これをしないと、ローカルでの編集がGoogle側の古いデータでの
+          // 上書き表示によって「消えた」ように見えてしまう
+          const remoteList = await listBookmarks(token, sheet.spreadsheetId);
+          for (const localB of listLocal()) {
+            const match = remoteList.find(r => r.url === localB.url);
+            if (!match) {
+              await appendBookmark(token, sheet.spreadsheetId, localB);
+            } else if ((localB.memo || '') !== (match.memo || '')) {
+              await updateMemo(token, sheet.spreadsheetId, match.rowIndex, localB.memo || '');
+            }
+          }
         }
 
         allBookmarks = await listBookmarks(token, sheet.spreadsheetId);
