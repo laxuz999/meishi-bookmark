@@ -18,6 +18,8 @@ function mockFetch(responseBody, status = 200) {
     calls.push({ url, options });
     return {
       status,
+      ok: status < 400,
+      statusText: '',
       json: async () => responseBody,
     };
   };
@@ -43,9 +45,9 @@ test('createSheet: 新規作成してヘッダー行を書き込む', async () =
     calls.push({ url, options });
     call++;
     if (call === 1) {
-      return { status: 200, json: async () => ({ spreadsheetId: 'newid', sheets: [{ properties: { sheetId: 0 } }] }) };
+      return { status: 200, ok: true, json: async () => ({ spreadsheetId: 'newid', sheets: [{ properties: { sheetId: 0 } }] }) };
     }
-    return { status: 200, json: async () => ({}) };
+    return { status: 200, ok: true, json: async () => ({}) };
   };
   const result = await createSheet('tok');
   assert.equal(result.spreadsheetId, 'newid');
@@ -82,6 +84,14 @@ test('listBookmarks: データが無ければ空配列', async () => {
   mockFetch({});
   const result = await listBookmarks('tok', 'sheet123');
   assert.deepEqual(result, []);
+});
+
+test('findSheet: 401エラーの場合はエラーをthrowする', async () => {
+  mockFetch({ error: { message: 'Invalid Credentials' } }, 401);
+  await assert.rejects(
+    () => findSheet('tok'),
+    /Google API error \(401\): Invalid Credentials/
+  );
 });
 
 test('deleteBookmark: 行削除のbatchUpdateを呼ぶ', async () => {

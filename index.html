@@ -152,13 +152,23 @@
         tagsSpan.textContent = b.tags.join('・');
         card.appendChild(tagsSpan);
 
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
+        card.appendChild(dateSpan);
+
         const button = document.createElement('button');
         button.dataset.row = b.rowIndex;
         button.textContent = '削除';
         button.addEventListener('click', async () => {
-          await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
-          allBookmarks = allBookmarks.filter(x => x.rowIndex !== b.rowIndex);
-          renderCards();
+          try {
+            await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
+            allBookmarks = allBookmarks
+              .filter(x => x.rowIndex !== b.rowIndex)
+              .map(x => x.rowIndex > b.rowIndex ? { ...x, rowIndex: x.rowIndex - 1 } : x);
+            renderCards();
+          } catch (err) {
+            alert('削除できませんでした。もう一度お試しください。');
+          }
         });
         card.appendChild(button);
 
