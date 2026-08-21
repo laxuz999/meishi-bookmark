@@ -10,16 +10,32 @@
   <div id="app">
     <button id="login-btn" style="display:none">Googleでログイン</button>
     <p id="status">読み込み中...</p>
+    <div id="list-ui" style="display:none">
+      <input id="search" type="text" placeholder="名前で検索" />
+      <select id="sort">
+        <option value="newest">新しい順</option>
+        <option value="oldest">古い順</option>
+      </select>
+      <div id="cards"></div>
+    </div>
   </div>
   <script type="module">
     import { parseBookmarkParams } from './src/logic.js';
     import { initGoogleAuth, requestLogin } from './src/auth.js';
-    import { findSheet, createSheet, appendBookmark } from './src/sheets.js';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, deleteBookmark } from './src/sheets.js';
+    import { filterAndSort } from './src/render.js';
 
     const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ACTUAL_CLIENT_ID';
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
     const loginBtn = document.getElementById('login-btn');
+    const listUi = document.getElementById('list-ui');
+    const cardsEl = document.getElementById('cards');
+    const searchEl = document.getElementById('search');
+    const sortEl = document.getElementById('sort');
+
+    let currentSheet = null;
+    let allBookmarks = [];
 
     async function saveFlow(token) {
       statusEl.textContent = '保存しています...';
@@ -30,13 +46,45 @@
       loginBtn.style.display = 'none';
     }
 
+    function renderCards() {
+      const filtered = filterAndSort(allBookmarks, searchEl.value, sortEl.value);
+      cardsEl.innerHTML = '';
+      for (const b of filtered) {
+        const card = document.createElement('div');
+        card.innerHTML = `
+          <a href="${b.url}" target="_blank" rel="noopener noreferrer">${b.name || b.url}</a>
+          <span>${b.tags.join('・')}</span>
+          <button data-row="${b.rowIndex}">削除</button>
+        `;
+        card.querySelector('button').addEventListener('click', async () => {
+          await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
+          allBookmarks = allBookmarks.filter(x => x.rowIndex !== b.rowIndex);
+          renderCards();
+        });
+        cardsEl.appendChild(card);
+      }
+    }
+
+    async function listFlow(token) {
+      statusEl.textContent = '読み込んでいます...';
+      currentSheet = await findSheet(token);
+      if (!currentSheet) {
+        statusEl.textContent = 'まだ保存された名刺がありません';
+        return;
+      }
+      allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
+      statusEl.style.display = 'none';
+      listUi.style.display = 'block';
+      renderCards();
+    }
+
     window.addEventListener('load', () => {
       initGoogleAuth(GOOGLE_CLIENT_ID, (token) => {
         window.__accessToken = token;
         if (bookmark) {
           saveFlow(token);
         } else {
-          statusEl.textContent = 'ログインしました';
+          listFlow(token);
         }
       });
       loginBtn.style.display = 'inline-block';
@@ -45,6 +93,8 @@
         : 'ログインしてください';
     });
     loginBtn.addEventListener('click', () => requestLogin());
+    searchEl.addEventListener('input', renderCards);
+    sortEl.addEventListener('change', renderCards);
   </script>
 </body>
 </html>
