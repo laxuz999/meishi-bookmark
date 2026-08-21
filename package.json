@@ -1,0 +1,8 @@
+{
+  "name": "meishi-bookmark",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  }
+}
