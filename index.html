@@ -383,6 +383,8 @@
         const button = document.createElement('button');
         button.textContent = '削除';
         button.addEventListener('click', async () => {
+          const target = b.name || '（名前未設定の名刺）';
+          if (!confirm(`「${target}」を削除します。よろしいですか？`)) return;
           try {
             if (syncMode === 'google') {
               await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
