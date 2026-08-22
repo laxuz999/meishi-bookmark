@@ -127,3 +127,4 @@ NEXUAユーザーに限らない。**名刺を見せられただけの一般の�
 - 2026-08-22: 各カードに「連絡先に追加」ボタンを追加。People API(`people:createContact`)で名前・URL・タグ・メモをGoogle連絡先へ登録。`contacts`スコープ(機密スコープ、要OAuth同意画面へのスコープ登録)はバックアップ用トークンとは別クライアントで、初回タップ時にだけ同意を求める設計に
 - 2026-08-22: 上記「連絡先に追加」機能を撤去（活用度が見込めないと判断）。src/contacts.js・関連UI・auth.jsのcontacts用トークンクライアント・README/仕様書のcontactsスコープ記載を削除
 - 2026-08-22: Google連携済みのカードのみ、メモ編集欄から写真を追加できるように（カメラ起動 or ファイル選択）。canvasで縮小・JPEG圧縮してからDriveへアップロードし、「リンクを知っている人は閲覧可」に設定してカードにサムネイル表示する。新スコープ不要（既存のdrive.fileで作成したファイルの範囲内のため）。シートにF列(photoUrl)を追加、src/drive.js(uploadPhoto)・sheets.jsのupdatePhotoUrlを新設
+- 2026-08-22: 不具合修正。サムネイルが表示されない・枠が大きすぎる問題を修正。写真URLを`uc?export=view`から`<img>`表示が安定するDriveのサムネイル専用エンドポイント(`drive.google.com/thumbnail`)に変更し、サムネイルのCSSサイズを72x72pxの小さい正方形に縮小

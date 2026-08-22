@@ -35,5 +35,7 @@ export async function uploadPhoto(token, blob, filename) {
   });
   await checkOk(permRes);
 
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  // uc?export=view はcontent-type判定の都合で<img>に直接表示されないことがあるため、
+  // Driveのサムネイル配信専用エンドポイント（安定して画像として返る）を使う
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
 }

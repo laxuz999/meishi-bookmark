@@ -35,7 +35,7 @@ test('uploadPhoto: アップロード後に共有設定し、閲覧用URLを返�
   ]);
   const blob = new Blob(['dummy'], { type: 'image/jpeg' });
   const url = await uploadPhoto('tok', blob, 'photo.jpg');
-  assert.equal(url, 'https://drive.google.com/uc?export=view&id=file123');
+  assert.equal(url, 'https://drive.google.com/thumbnail?id=file123&sz=w1000');
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, /upload\/drive\/v3\/files\?uploadType=multipart/);
   assert.equal(calls[0].options.method, 'POST');
