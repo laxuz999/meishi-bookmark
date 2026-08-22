@@ -295,12 +295,12 @@
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822k';
-    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822k';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822k';
-    import { filterAndSort } from './src/render.js?v=20260822k';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822k';
-    import { uploadPhoto } from './src/drive.js?v=20260822k';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822m';
+    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260822m';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822m';
+    import { filterAndSort } from './src/render.js?v=20260822m';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822m';
+    import { uploadPhoto } from './src/drive.js?v=20260822m';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
@@ -417,21 +417,6 @@
       backupBtn.textContent = isGoogleLinked()
         ? 'タップしてGoogle側の一覧を表示'
         : 'Googleでバックアップ・他の端末と同期する';
-    }
-
-    // 自動（サイレント）再ログインが失敗した時のコールバック。
-    // 起動直後に先出しした「連携済み」の見た目（listFlow参照）を未連携表示に戻す。
-    // 連携済みの見た目を出していなかった場合（手動ログインのキャンセル等）は
-    // 元々この関数は呼ばれた時点で見た目の変化がないため、案内も出さない。
-    function handleSilentLoginFailure() {
-      const wasShowingSynced = document.body.classList.contains('google-synced');
-      if (wasShowingSynced) {
-        document.body.classList.remove('google-synced');
-        pageTitleEl.textContent = 'NEXUA名刺ポケット';
-        statusEl.textContent = 'Google連携の確認が取れませんでした。お手数ですがもう一度「Googleでバックアップ・他の端末と同期する」をタップしてください。';
-        statusEl.style.display = 'block';
-      }
-      resetBackupBtn();
     }
 
     // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
@@ -807,49 +792,30 @@
       listUi.style.display = 'block';
       renderCards();
 
-      // 連携済み端末は、再ログイン確認が終わるまでの間も未連携の見た目に
-      // 戻さず、最初から連携済みの見た目で表示する。こうしないと、閉じて
-      // 開き直すたびに一瞬「NEXUA名刺ポケット」（未連携の見た目）が見えてから
-      // 「Google by NEXUA名刺ポケット」に切り替わる、というチラつきが起きる
-      if (isGoogleLinked()) {
-        pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
-        document.body.classList.add('google-synced');
-        backupBtn.disabled = true;
-        backupBtn.textContent = '連携を確認しています...';
-      } else {
-        resetBackupBtn();
-      }
-
-      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, handleSilentLoginFailure);
+      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, resetBackupBtn);
 
       if (isGoogleLinked()) {
         const cachedToken = loadCachedToken();
         if (cachedToken) {
           // 有効期限内のトークンが残っていれば、それをそのまま使って
           // データ取得する。Googleへの再ログインリクエスト自体を発生させない
-          // ため、モバイルSafariで起きる「勝手にアカウント選択画面が出る」
-          // 問題がここでは発生しない
+          // ため、勝手にアカウント選択画面が出ることはない
+          pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
+          document.body.classList.add('google-synced');
+          backupBtn.disabled = true;
+          backupBtn.textContent = '連携を確認しています...';
           backupFlow(cachedToken);
           return;
         }
       }
 
-      // 既に連携済みの端末（かつ有効なトークンのキャッシュがない）なら、
-      // ポップアップやボタン操作なしで自動的にトークン再取得を試みる
-      // （失敗時はhandleSilentLoginFailureで未連携表示に戻し、案内を出す）
-      if (isGoogleLinked()) {
-        requestSilentLogin();
-        // ポップアップがブラウザ側でブロックされる等の理由で、Google側の
-        // callbackが一度も呼ばれないまま止まることがある（「連携を確認して
-        // います...」で固まる）。一定時間で応答がなければ手動フォールバックに
-        // 切り替える。backupFlow/handleSilentLoginFailureのどちらかが既に
-        // 実行済みならbackupBtnの文言は変わっているはずなので二重発火はしない
-        setTimeout(() => {
-          if (backupBtn.textContent === '連携を確認しています...') {
-            handleSilentLoginFailure();
-          }
-        }, 4000);
-      }
+      // トークンのキャッシュが無い/切れている場合、Googleへ自動で
+      // 問い合わせることはしない（サイレント再ログインは、モバイルSafari等で
+      // 勝手にアカウント選択画面を表示してしまうことがあるため使わない）。
+      // 連携済みなら「タップしてGoogle側の一覧を表示」、未連携なら
+      // 「Googleでバックアップ・他の端末と同期する」とだけ表示し、
+      // タップされた時だけGoogleとやり取りする
+      resetBackupBtn();
     }
 
     window.addEventListener('load', () => {

@@ -18,18 +18,12 @@ export function initGoogleAuth(clientId, onToken, onError) {
   });
 }
 
+// 常にユーザーの明示的なタップから呼ぶ（ページ読み込み時などの自動実行では
+// 呼ばない）。prompt:''によるサイレント再ログインは、特にモバイルSafariで
+// Googleがサイレントに確定できず、勝手にアカウント選択画面を表示してしまう
+// ことがあるため採用しない。有効なアクセストークンのキャッシュがある間は
+// そもそもこの関数を呼ばずに済ませる設計にしている（index.html参照）
 export function requestLogin() {
   if (!tokenClient) throw new Error('initGoogleAuthが先に呼ばれていません');
   tokenClient.requestAccessToken();
-}
-
-// 既に連携済みの端末で、ポップアップやアカウント選択を出さずにトークン再取得を試みる。
-// 期待通りに無操作で成功することもあるが、特にモバイルSafariでは
-// prompt:''でもGoogleがサイレントに確定できず、アカウント選択画面が
-// そのまま出てしまうことがある（既知の制約）。そのため呼び出し元では
-// これを万能とせず、有効なトークンのキャッシュがある間はそもそも
-// この関数を呼ばずに済ませる設計にしている（index.html参照）
-export function requestSilentLogin() {
-  if (!tokenClient) throw new Error('initGoogleAuthが先に呼ばれていません');
-  tokenClient.requestAccessToken({ prompt: '' });
 }
