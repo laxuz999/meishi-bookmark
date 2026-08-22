@@ -389,6 +389,21 @@
         : 'Googleでバックアップ・他の端末と同期する';
     }
 
+    // 自動（サイレント）再ログインが失敗した時のコールバック。
+    // 起動直後に先出しした「連携済み」の見た目（listFlow参照）を未連携表示に戻す。
+    // 連携済みの見た目を出していなかった場合（手動ログインのキャンセル等）は
+    // 元々この関数は呼ばれた時点で見た目の変化がないため、案内も出さない。
+    function handleSilentLoginFailure() {
+      const wasShowingSynced = document.body.classList.contains('google-synced');
+      if (wasShowingSynced) {
+        document.body.classList.remove('google-synced');
+        pageTitleEl.textContent = 'NEXUA名刺ポケット';
+        statusEl.textContent = 'Google連携の確認が取れませんでした。お手数ですがもう一度「Googleでバックアップ・他の端末と同期する」をタップしてください。';
+        statusEl.style.display = 'block';
+      }
+      resetBackupBtn();
+    }
+
     // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
     // ひとことメモは任意入力なので、保存自体はメモなしで即完了させる
     function saveFlow() {
@@ -753,11 +768,24 @@
       listUi.style.display = 'block';
       renderCards();
 
-      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, resetBackupBtn);
-      resetBackupBtn();
+      // 連携済み端末は、再ログイン確認が終わるまでの間も未連携の見た目に
+      // 戻さず、最初から連携済みの見た目で表示する。こうしないと、閉じて
+      // 開き直すたびに一瞬「NEXUA名刺ポケット」（未連携の見た目）が見えてから
+      // 「Google by NEXUA名刺ポケット」に切り替わる、というチラつきが起きる
+      if (isGoogleLinked()) {
+        pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
+        document.body.classList.add('google-synced');
+        backupBtn.disabled = true;
+        backupBtn.textContent = '連携を確認しています...';
+      } else {
+        resetBackupBtn();
+      }
+
+      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, handleSilentLoginFailure);
 
       // 既に連携済みの端末なら、ポップアップやボタン操作なしで自動的に
-      // トークン再取得を試みる（失敗しても黙ってresetBackupBtnに戻るだけ）
+      // トークン再取得を試みる（失敗時はhandleSilentLoginFailureで
+      // 未連携表示に戻し、案内を出す）
       if (isGoogleLinked()) {
         requestSilentLogin();
       }
