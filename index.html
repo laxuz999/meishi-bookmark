@@ -82,19 +82,6 @@
     #cards .row > button:hover {
       background: #ffe4e6;
     }
-    #cards .row > button.contact-add-btn {
-      color: #0d9488;
-      background: #f0fdfa;
-      border-color: #99f6e4;
-      white-space: nowrap;
-    }
-    #cards .row > button.contact-add-btn:hover {
-      background: #ccfbf1;
-    }
-    #cards .row > button.contact-add-btn:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
     #cards .memo-row {
       display: flex;
       align-items: flex-start;
@@ -234,12 +221,11 @@
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822d';
-    import { initGoogleAuth, requestLogin, requestSilentLogin, initContactsAuth, requestContactsLogin } from './src/auth.js?v=20260822d';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './src/sheets.js?v=20260822d';
-    import { filterAndSort } from './src/render.js?v=20260822d';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822d';
-    import { createContact } from './src/contacts.js?v=20260822d';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822e';
+    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822e';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './src/sheets.js?v=20260822e';
+    import { filterAndSort } from './src/render.js?v=20260822e';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822e';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
@@ -303,35 +289,6 @@
     let allBookmarks = [];
     // 一覧の表示元。'local' = このブラウザのlocalStorage、'google' = Googleスプレッドシート
     let syncMode = 'local';
-
-    // 「連絡先に追加」専用トークン（drive.fileとは別スコープ・別クライアント）。
-    // 初回タップ時にだけ同意を求め、以後はこのセッション内で使い回す
-    let contactsAccessToken = null;
-    let pendingContactAdds = [];
-
-    function onContactsToken(token) {
-      contactsAccessToken = token;
-      const queued = pendingContactAdds;
-      pendingContactAdds = [];
-      queued.forEach(fn => fn(token));
-    }
-
-    function onContactsError() {
-      const queued = pendingContactAdds;
-      pendingContactAdds = [];
-      queued.forEach(fn => fn(null));
-    }
-
-    // 「連絡先に追加」ボタン押下時のエントリポイント。トークンが未取得なら
-    // 同意フローを挟んでから実行し、既に取得済みならそのまま実行する
-    function withContactsToken(callback) {
-      if (contactsAccessToken) {
-        callback(contactsAccessToken);
-      } else {
-        pendingContactAdds.push(callback);
-        requestContactsLogin();
-      }
-    }
 
     function isGoogleLinked() {
       return localStorage.getItem(GOOGLE_LINKED_KEY) === '1';
@@ -512,31 +469,6 @@
           });
         });
 
-        const contactBtn = document.createElement('button');
-        contactBtn.className = 'contact-add-btn';
-        contactBtn.textContent = '📇 連絡先に追加';
-        contactBtn.addEventListener('click', () => {
-          contactBtn.disabled = true;
-          contactBtn.textContent = '追加中...';
-          withContactsToken(async (token) => {
-            if (!token) {
-              contactBtn.disabled = false;
-              contactBtn.textContent = '📇 連絡先に追加';
-              await appAlert('Google連絡先への接続に失敗しました。もう一度お試しください。');
-              return;
-            }
-            try {
-              await createContact(token, b);
-              contactBtn.textContent = '✓ 追加しました';
-            } catch (err) {
-              contactBtn.disabled = false;
-              contactBtn.textContent = '📇 連絡先に追加';
-              await appAlert(describeGoogleSyncError(err, '連絡先への追加'));
-            }
-          });
-        });
-        row.appendChild(contactBtn);
-
         const button = document.createElement('button');
         button.textContent = '削除';
         button.addEventListener('click', async () => {
@@ -573,7 +505,6 @@
 
       initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, resetBackupBtn);
       resetBackupBtn();
-      initContactsAuth(GOOGLE_CLIENT_ID, onContactsToken, onContactsError);
 
       // 既に連携済みの端末なら、ポップアップやボタン操作なしで自動的に
       // トークン再取得を試みる（失敗しても黙ってresetBackupBtnに戻るだけ）
