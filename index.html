@@ -197,6 +197,17 @@
       </div>
     </div>
   </div>
+  <!-- confirm()/alert()の代わりに使う自前ダイアログ（ブラウザ標準ダイアログだとURLが出てしまうため） -->
+  <div id="app-dialog-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-6 text-sm text-neutral-700">
+      <p class="text-[10px] font-bold text-rose-500 mb-2 tracking-wide">NEXUA名刺ポケット</p>
+      <p id="app-dialog-message" class="mb-5 leading-relaxed"></p>
+      <div class="flex gap-3">
+        <button id="app-dialog-cancel" style="display:none" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">キャンセル</button>
+        <button id="app-dialog-ok" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">OK</button>
+      </div>
+    </div>
+  </div>
   <script type="module">
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
@@ -226,6 +237,43 @@
     const cardsEl = document.getElementById('cards');
     const searchEl = document.getElementById('search');
     const sortEl = document.getElementById('sort');
+    const dialogModalEl = document.getElementById('app-dialog-modal');
+    const dialogMessageEl = document.getElementById('app-dialog-message');
+    const dialogCancelBtn = document.getElementById('app-dialog-cancel');
+    const dialogOkBtn = document.getElementById('app-dialog-ok');
+
+    // ブラウザ標準alert()の代替（URLが出ないよう自前モーダルで表示）
+    function appAlert(message) {
+      return new Promise((resolve) => {
+        dialogMessageEl.textContent = message;
+        dialogCancelBtn.style.display = 'none';
+        dialogModalEl.style.display = 'flex';
+        const onOk = () => {
+          dialogModalEl.style.display = 'none';
+          dialogOkBtn.removeEventListener('click', onOk);
+          resolve();
+        };
+        dialogOkBtn.addEventListener('click', onOk);
+      });
+    }
+
+    // ブラウザ標準confirm()の代替（URLが出ないよう自前モーダルで表示）
+    function appConfirm(message) {
+      return new Promise((resolve) => {
+        dialogMessageEl.textContent = message;
+        dialogCancelBtn.style.display = 'block';
+        dialogModalEl.style.display = 'flex';
+        const cleanup = () => {
+          dialogModalEl.style.display = 'none';
+          dialogOkBtn.removeEventListener('click', onOk);
+          dialogCancelBtn.removeEventListener('click', onCancel);
+        };
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
+        dialogOkBtn.addEventListener('click', onOk);
+        dialogCancelBtn.addEventListener('click', onCancel);
+      });
+    }
 
     let currentSheet = null;
     let allBookmarks = [];
@@ -300,7 +348,7 @@
         renderCards();
       } catch (err) {
         resetBackupBtn();
-        alert('Google連携に失敗しました。もう一度お試しください。');
+        await appAlert('Google連携に失敗しました。もう一度お試しください。');
       }
     }
 
@@ -403,7 +451,7 @@
               }
               renderCards();
             } catch (err) {
-              alert(describeGoogleSyncError(err, 'メモを保存'));
+              await appAlert(describeGoogleSyncError(err, 'メモを保存'));
             }
           });
         });
@@ -412,7 +460,7 @@
         button.textContent = '削除';
         button.addEventListener('click', async () => {
           const target = b.name || '（名前未設定の名刺）';
-          if (!confirm(`「${target}」を削除します。よろしいですか？`)) return;
+          if (!(await appConfirm(`「${target}」を削除します。よろしいですか？`))) return;
           try {
             if (syncMode === 'google') {
               await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
@@ -425,7 +473,7 @@
             }
             renderCards();
           } catch (err) {
-            alert(describeGoogleSyncError(err, '削除'));
+            await appAlert(describeGoogleSyncError(err, '削除'));
           }
         });
         row.appendChild(button);
