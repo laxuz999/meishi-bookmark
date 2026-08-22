@@ -140,6 +140,15 @@ export async function updateMemo(token, spreadsheetId, rowIndex, memo) {
   await checkOk(res);
 }
 
+export async function updateTags(token, spreadsheetId, rowIndex, tags) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!C${rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [[(tags || []).join(',')]] }),
+  });
+  await checkOk(res);
+}
+
 export async function updatePhotoUrl(token, spreadsheetId, rowIndex, photoUrl) {
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!F${rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',

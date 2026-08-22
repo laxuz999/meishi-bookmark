@@ -51,3 +51,12 @@ export function updateLocalMemo(id, memo) {
   list[idx] = { ...list[idx], memo };
   writeAll(list);
 }
+
+// 保存後にタグだけを追記・上書きするための更新関数
+export function updateLocalTags(id, tags) {
+  const list = readAll();
+  const idx = list.findIndex((b) => b.id === id);
+  if (idx === -1) return;
+  list[idx] = { ...list[idx], tags };
+  writeAll(list);
+}

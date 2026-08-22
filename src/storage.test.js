@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './storage.js';
+import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './storage.js';
 
 // node:testにはlocalStorageがないので簡易モックを用意
 beforeEach(() => {
@@ -75,5 +75,20 @@ test('updateLocalMemo: 指定したidのメモだけを更新する', () => {
 test('updateLocalMemo: 存在しないidを渡してもクラッシュしない', () => {
   saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
   assert.doesNotThrow(() => updateLocalMemo('no-such-id', 'メモ'));
+  assert.equal(listLocal().length, 1);
+});
+
+test('updateLocalTags: 指定したidのタグだけを更新する', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: ['旧タグ'] });
+  const target = saveLocal({ url: 'https://nexua.tech/#zz2', name: 'B', tags: [] });
+  updateLocalTags(target.id, ['DIY', '交流会']);
+  const list = listLocal();
+  assert.deepEqual(list.find(b => b.id === target.id).tags, ['DIY', '交流会']);
+  assert.deepEqual(list.find(b => b.name === 'A').tags, ['旧タグ']);
+});
+
+test('updateLocalTags: 存在しないidを渡してもクラッシュしない', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  assert.doesNotThrow(() => updateLocalTags('no-such-id', ['DIY']));
   assert.equal(listLocal().length, 1);
 });

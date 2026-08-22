@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updatePhotoUrl, deleteBookmark } from './sheets.js';
+import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './sheets.js';
 
 let originalFetch;
 let calls;
@@ -167,6 +167,23 @@ test('updateMemo: 指定行のE列だけを更新するAPIを呼ぶ', async () =
   assert.equal(calls[0].options.method, 'PUT');
   const body = JSON.parse(calls[0].options.body);
   assert.deepEqual(body.values, [['交流会で交換']]);
+});
+
+test('updateTags: 指定行のC列だけを更新するAPIを呼ぶ', async () => {
+  mockFetch({});
+  await updateTags('tok', 'sheet123', 3, ['DIY', '交流会']);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /values\/bookmarks!C3/);
+  assert.equal(calls[0].options.method, 'PUT');
+  const body = JSON.parse(calls[0].options.body);
+  assert.deepEqual(body.values, [['DIY,交流会']]);
+});
+
+test('updateTags: 空配列を渡すと空文字を送る', async () => {
+  mockFetch({});
+  await updateTags('tok', 'sheet123', 3, []);
+  const body = JSON.parse(calls[0].options.body);
+  assert.deepEqual(body.values, [['']]);
 });
 
 test('updatePhotoUrl: 指定行のF列だけを更新するAPIを呼ぶ', async () => {

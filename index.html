@@ -155,9 +155,15 @@
     }
     #cards .card-photo-link {
       display: block;
+      flex: 1;
+      min-width: 0;
     }
-    #cards .card-photos-row .memo-photo-thumb {
-      margin-bottom: 0;
+    #cards .card-photo-thumb {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      border-radius: 0.5rem;
+      display: block;
     }
     #cards .memo-photo-thumb {
       width: 72px;
@@ -267,15 +273,17 @@
       <label class="block text-xs text-neutral-500 mb-1.5">ひとことメモ（任意）</label>
       <textarea id="paper-card-memo" rows="2" placeholder="例：〇〇交流会で名刺交換" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
 
+      <p class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 leading-relaxed">📱 スマホを<strong>横向き</strong>にして撮影すると、名刺全体がきれいに収まります</p>
+
       <label class="block text-xs text-neutral-500 mb-1.5">表面（必須）</label>
       <input id="paper-card-front-input" type="file" accept="image/*" capture="environment" style="display:none" />
       <button id="paper-card-front-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 表面を撮影・選択</button>
-      <img id="paper-card-front-preview" style="display:none" class="w-full max-h-40 object-cover rounded-xl mb-4" />
+      <img id="paper-card-front-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
 
       <label class="block text-xs text-neutral-500 mb-1.5">裏面（任意）</label>
       <input id="paper-card-back-input" type="file" accept="image/*" capture="environment" style="display:none" />
       <button id="paper-card-back-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 裏面を撮影・選択</button>
-      <img id="paper-card-back-preview" style="display:none" class="w-full max-h-40 object-cover rounded-xl mb-4" />
+      <img id="paper-card-back-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
 
       <div class="flex gap-3">
         <button id="paper-card-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
@@ -287,12 +295,12 @@
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822i';
-    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822i';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822i';
-    import { filterAndSort } from './src/render.js?v=20260822i';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822i';
-    import { uploadPhoto } from './src/drive.js?v=20260822i';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822j';
+    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822j';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822j';
+    import { filterAndSort } from './src/render.js?v=20260822j';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822j';
+    import { uploadPhoto } from './src/drive.js?v=20260822j';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
@@ -530,13 +538,64 @@
           row.appendChild(linkFallback);
         }
 
-        const tagsSpan = document.createElement('span');
-        tagsSpan.textContent = b.tags.join('・');
-        row.appendChild(tagsSpan);
-
         const dateSpan = document.createElement('span');
         dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
         row.appendChild(dateSpan);
+
+        // タグ（後から編集可能。ローカル・Google同期どちらのモードでも対応）
+        const tagsRow = document.createElement('div');
+        tagsRow.className = 'memo-row';
+        const tagsText = document.createElement('span');
+        tagsText.className = 'memo-text' + (b.tags.length ? '' : ' placeholder');
+        tagsText.textContent = b.tags.length ? b.tags.join('・') : 'タグなし';
+        const tagsEditBtn = document.createElement('button');
+        tagsEditBtn.className = 'memo-edit-btn';
+        tagsEditBtn.textContent = b.tags.length ? '編集' : '+ タグを追加';
+        tagsRow.appendChild(tagsText);
+        tagsRow.appendChild(tagsEditBtn);
+        card.appendChild(tagsRow);
+
+        tagsEditBtn.addEventListener('click', () => {
+          const editArea = document.createElement('div');
+          editArea.className = 'memo-edit-area';
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = '例：DIY,交流会';
+          input.value = b.tags.join(',');
+          const actions = document.createElement('div');
+          actions.className = 'memo-edit-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'memo-save-btn';
+          saveBtn.textContent = '保存';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'memo-cancel-btn';
+          cancelBtn.textContent = 'キャンセル';
+          actions.appendChild(saveBtn);
+          actions.appendChild(cancelBtn);
+          editArea.appendChild(input);
+          editArea.appendChild(actions);
+          card.replaceChild(editArea, tagsRow);
+          input.focus();
+
+          cancelBtn.addEventListener('click', () => {
+            card.replaceChild(tagsRow, editArea);
+          });
+          saveBtn.addEventListener('click', async () => {
+            const newTags = input.value.split(',').map(t => t.trim()).filter(Boolean);
+            try {
+              if (syncMode === 'google') {
+                await updateTags(window.__accessToken, currentSheet.spreadsheetId, b.rowIndex, newTags);
+                allBookmarks = allBookmarks.map(x => x.rowIndex === b.rowIndex ? { ...x, tags: newTags } : x);
+              } else {
+                updateLocalTags(b.id, newTags);
+                allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, tags: newTags } : x);
+              }
+              renderCards();
+            } catch (err) {
+              await appAlert(describeGoogleSyncError(err, 'タグを保存'));
+            }
+          });
+        });
 
         // 紙の名刺の表裏写真（Google連携済みの場合のみ）
         if (syncMode === 'google' && (b.frontPhotoUrl || b.backPhotoUrl)) {
@@ -552,7 +611,7 @@
             const img = document.createElement('img');
             img.src = url;
             img.alt = label + '面';
-            img.className = 'memo-photo-thumb';
+            img.className = 'card-photo-thumb';
             link.appendChild(img);
             cardPhotosRow.appendChild(link);
           });
