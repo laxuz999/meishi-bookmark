@@ -295,12 +295,12 @@
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822m';
-    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260822m';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822m';
-    import { filterAndSort } from './src/render.js?v=20260822m';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822m';
-    import { uploadPhoto } from './src/drive.js?v=20260822m';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822n';
+    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260822n';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822n';
+    import { filterAndSort } from './src/render.js?v=20260822n';
+    import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822n';
+    import { uploadPhoto } from './src/drive.js?v=20260822n';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
@@ -769,6 +769,10 @@
               allBookmarks = allBookmarks
                 .filter(x => x.rowIndex !== b.rowIndex)
                 .map(x => x.rowIndex > b.rowIndex ? { ...x, rowIndex: x.rowIndex - 1 } : x);
+              // Google側だけでなく、この端末のローカルデータからも消しておかないと、
+              // 次回の差分同期（ローカルにあってGoogle側にない分をアップロード）で
+              // 削除したはずの名刺が復活してしまう
+              deleteLocalByUrl(b.url);
             } else {
               deleteLocal(b.id);
               allBookmarks = allBookmarks.filter(x => x.id !== b.id);

@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './storage.js';
+import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './storage.js';
 
 // node:testにはlocalStorageがないので簡易モックを用意
 beforeEach(() => {
@@ -90,5 +90,29 @@ test('updateLocalTags: 指定したidのタグだけを更新する', () => {
 test('updateLocalTags: 存在しないidを渡してもクラッシュしない', () => {
   saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
   assert.doesNotThrow(() => updateLocalTags('no-such-id', ['DIY']));
+  assert.equal(listLocal().length, 1);
+});
+
+// Google側で削除した名刺が、この端末のローカルデータに残ったままだと、
+// 次回の差分同期（ローカルにあってGoogle側にない分をアップロード）で
+// 復活してしまう不具合があったため追加した関数
+test('deleteLocalByUrl: 指定したurlのエントリだけを削除する', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  saveLocal({ url: 'https://nexua.tech/#zz2', name: 'B', tags: [] });
+  deleteLocalByUrl('https://nexua.tech/#zz1');
+  const list = listLocal();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].name, 'B');
+});
+
+test('deleteLocalByUrl: 一致するurlがなくてもクラッシュしない', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  assert.doesNotThrow(() => deleteLocalByUrl('https://nexua.tech/#no-such-url'));
+  assert.equal(listLocal().length, 1);
+});
+
+test('deleteLocalByUrl: url未指定（紙の名刺等）を渡しても全削除しない', () => {
+  saveLocal({ url: 'https://nexua.tech/#zz1', name: 'A', tags: [] });
+  assert.doesNotThrow(() => deleteLocalByUrl(undefined));
   assert.equal(listLocal().length, 1);
 });

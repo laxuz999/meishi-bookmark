@@ -43,6 +43,15 @@ export function deleteLocal(id) {
   writeAll(readAll().filter((b) => b.id !== id));
 }
 
+// Google側で削除した名刺を、この端末のローカルデータからも削除するための関数。
+// ローカルとGoogle側はurlをキーに対応づいているため、idではなくurlで探す。
+// これをしないと、Google側で削除→この端末では消えないまま残る→次回の
+// 差分同期（ローカルにあってGoogle側にない分をアップロード）で復活してしまう
+export function deleteLocalByUrl(url) {
+  if (!url) return;
+  writeAll(readAll().filter((b) => b.url !== url));
+}
+
 // 保存後に「ひとことメモ」だけを追記・上書きするための更新関数
 export function updateLocalMemo(id, memo) {
   const list = readAll();
