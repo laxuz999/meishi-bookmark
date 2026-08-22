@@ -117,6 +117,14 @@
 - 合言葉表示後のUI（コピーしやすさ、再表示の可否）
 - 既存のindex.html/src配下のどこまでを新規ファイルに切り出すか
 
+## デプロイ済み情報
+
+- GAS Web App URL: `https://script.google.com/macros/s/AKfycbyelJf8EEuEIWUiwrp2l8TFddL5jXemE-EKxDUeeJnQIxJpRsmPaaqh2eCHVLOXTEWj/exec`
+- スプレッドシート: GASプロジェクトの「概要」からリンクされる、自動作成された運営管理用スプレッドシート
+- **既知の問題（未解決・要手動対応）**: 上記URLへの匿名アクセスは現時点で `403 アクセスが拒否されました`（Google Driveの「アクセス権が必要です」画面）を返す。appsscript.jsonは `webapp.access: "ANYONE_ANONYMOUS"`, `executeAs: "USER_DEPLOYING"` で正しく設定・デプロイ済みだが、このGASプロジェクトはclasp（API経由）でのみ作成・push・デプロイされており、デプロイアカウント（zz999999999@gmail.com）が一度もスクリプトエディタ上で関数を実行してOAuth権限承認（Review Permissions〜Allow）を行っていないため、SpreadsheetApp等のスコープが未承認のまま。これがブロッカーとなり匿名リクエストが弾かれている可能性が高い。
+  - **解決手順（要人手・Google Workspaceログインが必要なためAIでは実行不可）**: ブラウザで `https://script.google.com/d/1agSPdYHeREX-gIXgpJ7D3qWIjFya1mXxwIeX6PW-KZTVkm0efRrtnT0y/edit` をzz999999999@gmail.comでログインして開き、関数選択で`issueCode`を選んで実行 → 「権限を確認」ダイアログが出たら zz999999999@gmail.com を選択 → 「詳細」→「meishi-bookmark-pocket-backend（安全ではないページ）に移動」→「許可」。その後、上記URLへの疎通確認（`?action=issue_code`）をやり直すこと。
+
 ## 変更履歴
 
 - 2026-08-22: 初版作成
+- 2026-08-22: Task 2でGAS backendをclaspデプロイ。appsscript.jsonの`webapp.access`はTask 1の`"ANYONE"`だとログイン必須になることが判明したため`"ANYONE_ANONYMOUS"`に修正して確定。デプロイURLを記録（疎通確認は認可未完了によりブロック中、上記参照）
