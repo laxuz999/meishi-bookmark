@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, deleteBookmark } from './sheets.js';
+import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updatePhotoUrl, deleteBookmark } from './sheets.js';
 
 let originalFetch;
 let calls;
@@ -63,31 +63,33 @@ test('createSheet: 新規作成してヘッダー行を書き込む', async () =
   assert.equal(result.spreadsheetId, 'newid');
   assert.equal(result.gid, 0);
   assert.equal(calls.length, 2);
-  assert.match(calls[1].url, /values\/bookmarks!A1:E1/);
+  assert.match(calls[1].url, /values\/bookmarks!A1:F1/);
 });
 
 test('appendBookmark: 行を追記するAPIを呼ぶ', async () => {
   mockFetch({});
-  await appendBookmark('tok', 'sheet123', { url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY', '釣り'], memo: '展示会で交換' });
+  await appendBookmark('tok', 'sheet123', { url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY', '釣り'], memo: '展示会で交換', photoUrl: 'https://drive.google.com/uc?export=view&id=abc' });
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /values\/bookmarks!A:E:append/);
+  assert.match(calls[0].url, /values\/bookmarks!A:F:append/);
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.values[0][0], 'https://nexua.tech/#zz1');
   assert.equal(body.values[0][1], '山田');
   assert.equal(body.values[0][2], 'DIY,釣り');
   assert.equal(body.values[0][4], '展示会で交換');
+  assert.equal(body.values[0][5], 'https://drive.google.com/uc?export=view&id=abc');
 });
 
-test('appendBookmark: memo省略時は空文字を送る', async () => {
+test('appendBookmark: memo・photoUrl省略時は空文字を送る', async () => {
   mockFetch({});
   await appendBookmark('tok', 'sheet123', { url: 'https://nexua.tech/#zz1', name: '山田', tags: [] });
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.values[0][4], '');
+  assert.equal(body.values[0][5], '');
 });
 
 test('listBookmarks: 行データをオブジェクト配列に変換する（rowIndexはヘッダー分+2から）', async () => {
   mockFetch({ values: [
-    ['https://nexua.tech/#zz1', '山田', 'DIY,釣り', '2026-08-21T00:00:00.000Z', '展示会で交換'],
+    ['https://nexua.tech/#zz1', '山田', 'DIY,釣り', '2026-08-21T00:00:00.000Z', '展示会で交換', 'https://drive.google.com/uc?export=view&id=abc'],
     ['https://nexua.tech/#zz2', '田中', '', '2026-08-22T00:00:00.000Z'],
   ]});
   const result = await listBookmarks('tok', 'sheet123');
@@ -95,9 +97,11 @@ test('listBookmarks: 行データをオブジェクト配列に変換する（ro
   assert.equal(result[0].rowIndex, 2);
   assert.deepEqual(result[0].tags, ['DIY', '釣り']);
   assert.equal(result[0].memo, '展示会で交換');
+  assert.equal(result[0].photoUrl, 'https://drive.google.com/uc?export=view&id=abc');
   assert.equal(result[1].rowIndex, 3);
   assert.deepEqual(result[1].tags, []);
   assert.equal(result[1].memo, '');
+  assert.equal(result[1].photoUrl, '');
 });
 
 test('listBookmarks: データが無ければ空配列', async () => {
@@ -122,6 +126,16 @@ test('updateMemo: 指定行のE列だけを更新するAPIを呼ぶ', async () =
   assert.equal(calls[0].options.method, 'PUT');
   const body = JSON.parse(calls[0].options.body);
   assert.deepEqual(body.values, [['交流会で交換']]);
+});
+
+test('updatePhotoUrl: 指定行のF列だけを更新するAPIを呼ぶ', async () => {
+  mockFetch({});
+  await updatePhotoUrl('tok', 'sheet123', 3, 'https://drive.google.com/uc?export=view&id=abc');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /values\/bookmarks!F3/);
+  assert.equal(calls[0].options.method, 'PUT');
+  const body = JSON.parse(calls[0].options.body);
+  assert.deepEqual(body.values, [['https://drive.google.com/uc?export=view&id=abc']]);
 });
 
 test('deleteBookmark: 行削除のbatchUpdateを呼ぶ', async () => {

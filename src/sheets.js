@@ -47,10 +47,10 @@ export async function createSheet(token) {
   const spreadsheetId = data.spreadsheetId;
   const gid = data.sheets[0].properties.sheetId;
 
-  const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:E1?valueInputOption=RAW`, {
+  const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:F1?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [['url', 'name', 'tags', 'savedAt', 'memo']] }),
+    body: JSON.stringify({ values: [['url', 'name', 'tags', 'savedAt', 'memo', 'photoUrl']] }),
   });
   await checkOk(headerRes);
 
@@ -58,8 +58,8 @@ export async function createSheet(token) {
 }
 
 export async function appendBookmark(token, spreadsheetId, bookmark) {
-  const row = [bookmark.url, bookmark.name, (bookmark.tags || []).join(','), new Date().toISOString(), bookmark.memo || ''];
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:E:append?valueInputOption=RAW`, {
+  const row = [bookmark.url, bookmark.name, (bookmark.tags || []).join(','), new Date().toISOString(), bookmark.memo || '', bookmark.photoUrl || ''];
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:F:append?valueInputOption=RAW`, {
     method: 'POST',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] }),
@@ -68,7 +68,7 @@ export async function appendBookmark(token, spreadsheetId, bookmark) {
 }
 
 export async function listBookmarks(token, spreadsheetId) {
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A2:E`, {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A2:F`, {
     headers: authHeader(token),
   });
   await checkOk(res);
@@ -81,6 +81,7 @@ export async function listBookmarks(token, spreadsheetId) {
     tags: (row[2] || '').split(',').map(t => t.trim()).filter(Boolean),
     savedAt: row[3] || '',
     memo: row[4] || '',
+    photoUrl: row[5] || '',
   }));
 }
 
@@ -89,6 +90,15 @@ export async function updateMemo(token, spreadsheetId, rowIndex, memo) {
     method: 'PUT',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [[memo]] }),
+  });
+  await checkOk(res);
+}
+
+export async function updatePhotoUrl(token, spreadsheetId, rowIndex, photoUrl) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!F${rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [[photoUrl]] }),
   });
   await checkOk(res);
 }
