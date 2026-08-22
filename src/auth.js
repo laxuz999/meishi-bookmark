@@ -30,3 +30,26 @@ export function requestSilentLogin() {
   if (!tokenClient) throw new Error('initGoogleAuthが先に呼ばれていません');
   tokenClient.requestAccessToken({ prompt: '' });
 }
+
+// 「Google連絡先に追加」専用のトークンクライアント（drive.fileとは別スコープ・別クライアント）。
+// 同期に必須ではない機能なので、実際に「連絡先に追加」を押した人だけに追加の同意を求める
+let contactsTokenClient = null;
+
+export function initContactsAuth(clientId, onToken, onError) {
+  contactsTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/contacts',
+    callback: (response) => {
+      if (response.access_token) {
+        onToken(response.access_token);
+      } else if (onError) {
+        onError(response);
+      }
+    },
+  });
+}
+
+export function requestContactsLogin() {
+  if (!contactsTokenClient) throw new Error('initContactsAuthが先に呼ばれていません');
+  contactsTokenClient.requestAccessToken();
+}
