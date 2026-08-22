@@ -171,6 +171,9 @@
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleでバックアップ・他の端末と同期する</button>
+      <a id="open-sheet-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none" class="flex items-center justify-center gap-1.5 mb-4 text-xs text-sky-600 hover:text-sky-700 underline underline-offset-2">
+        📊 Googleスプレッドシートで開く（並べ替え・共有もできます）
+      </a>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -233,6 +236,7 @@
     const homeScreenNoticeEl = document.getElementById('home-screen-notice');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
+    const openSheetLinkEl = document.getElementById('open-sheet-link');
     const pageTitleEl = document.getElementById('page-title');
     const syncModalEl = document.getElementById('google-sync-modal');
     const syncCancelBtn = document.getElementById('google-sync-cancel');
@@ -350,6 +354,8 @@
         backupBtn.textContent = 'Googleと同期済みです';
         pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
+        openSheetLinkEl.href = `https://docs.google.com/spreadsheets/d/${sheet.spreadsheetId}/edit`;
+        openSheetLinkEl.style.display = 'flex';
         renderCards();
       } catch (err) {
         resetBackupBtn();
