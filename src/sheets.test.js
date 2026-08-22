@@ -63,33 +63,42 @@ test('createSheet: 新規作成してヘッダー行を書き込む', async () =
   assert.equal(result.spreadsheetId, 'newid');
   assert.equal(result.gid, 0);
   assert.equal(calls.length, 2);
-  assert.match(calls[1].url, /values\/bookmarks!A1:F1/);
+  assert.match(calls[1].url, /values\/bookmarks!A1:H1/);
 });
 
 test('appendBookmark: 行を追記するAPIを呼ぶ', async () => {
   mockFetch({});
-  await appendBookmark('tok', 'sheet123', { url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY', '釣り'], memo: '展示会で交換', photoUrl: 'https://drive.google.com/uc?export=view&id=abc' });
+  await appendBookmark('tok', 'sheet123', {
+    url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY', '釣り'], memo: '展示会で交換',
+    photoUrl: 'https://drive.google.com/uc?export=view&id=abc',
+    frontPhotoUrl: 'https://drive.google.com/thumbnail?id=front1', backPhotoUrl: 'https://drive.google.com/thumbnail?id=back1',
+  });
   assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /values\/bookmarks!A:F:append/);
+  assert.match(calls[0].url, /values\/bookmarks!A:H:append/);
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.values[0][0], 'https://nexua.tech/#zz1');
   assert.equal(body.values[0][1], '山田');
   assert.equal(body.values[0][2], 'DIY,釣り');
   assert.equal(body.values[0][4], '展示会で交換');
   assert.equal(body.values[0][5], 'https://drive.google.com/uc?export=view&id=abc');
+  assert.equal(body.values[0][6], 'https://drive.google.com/thumbnail?id=front1');
+  assert.equal(body.values[0][7], 'https://drive.google.com/thumbnail?id=back1');
 });
 
-test('appendBookmark: memo・photoUrl省略時は空文字を送る', async () => {
+test('appendBookmark: url省略・memo・photoUrl等省略時は空文字を送る（紙の名刺登録を想定）', async () => {
   mockFetch({});
-  await appendBookmark('tok', 'sheet123', { url: 'https://nexua.tech/#zz1', name: '山田', tags: [] });
+  await appendBookmark('tok', 'sheet123', { name: '山田', tags: [] });
   const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.values[0][0], '');
   assert.equal(body.values[0][4], '');
   assert.equal(body.values[0][5], '');
+  assert.equal(body.values[0][6], '');
+  assert.equal(body.values[0][7], '');
 });
 
 test('listBookmarks: 行データをオブジェクト配列に変換する（rowIndexはヘッダー分+2から）', async () => {
   mockFetch({ values: [
-    ['https://nexua.tech/#zz1', '山田', 'DIY,釣り', '2026-08-21T00:00:00.000Z', '展示会で交換', 'https://drive.google.com/uc?export=view&id=abc'],
+    ['https://nexua.tech/#zz1', '山田', 'DIY,釣り', '2026-08-21T00:00:00.000Z', '展示会で交換', 'https://drive.google.com/uc?export=view&id=abc', 'https://drive.google.com/thumbnail?id=front1', 'https://drive.google.com/thumbnail?id=back1'],
     ['https://nexua.tech/#zz2', '田中', '', '2026-08-22T00:00:00.000Z'],
   ]});
   const result = await listBookmarks('tok', 'sheet123');
@@ -98,10 +107,14 @@ test('listBookmarks: 行データをオブジェクト配列に変換する（ro
   assert.deepEqual(result[0].tags, ['DIY', '釣り']);
   assert.equal(result[0].memo, '展示会で交換');
   assert.equal(result[0].photoUrl, 'https://drive.google.com/uc?export=view&id=abc');
+  assert.equal(result[0].frontPhotoUrl, 'https://drive.google.com/thumbnail?id=front1');
+  assert.equal(result[0].backPhotoUrl, 'https://drive.google.com/thumbnail?id=back1');
   assert.equal(result[1].rowIndex, 3);
   assert.deepEqual(result[1].tags, []);
   assert.equal(result[1].memo, '');
   assert.equal(result[1].photoUrl, '');
+  assert.equal(result[1].frontPhotoUrl, '');
+  assert.equal(result[1].backPhotoUrl, '');
 });
 
 test('listBookmarks: データが無ければ空配列', async () => {

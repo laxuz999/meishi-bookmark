@@ -148,6 +148,17 @@
       border: 1px solid #e5e5e5 !important;
       color: #a3a3a3;
     }
+    #cards .card-photos-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+    #cards .card-photo-link {
+      display: block;
+    }
+    #cards .card-photos-row .memo-photo-thumb {
+      margin-bottom: 0;
+    }
     #cards .memo-photo-thumb {
       width: 72px;
       height: 72px;
@@ -200,6 +211,7 @@
       <a id="open-sheet-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none" class="flex items-center justify-center gap-1.5 mb-4 text-xs text-sky-600 hover:text-sky-700 underline underline-offset-2">
         📊 Googleスプレッドシートで開く（並べ替え・共有もできます）
       </a>
+      <button id="paper-card-open-btn" style="display:none" class="w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺を登録</button>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -241,16 +253,46 @@
       </div>
     </div>
   </div>
+  <!-- 紙の名刺を撮影して登録するモーダル（Google連携済みの場合のみ使用） -->
+  <div id="paper-card-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 my-8">
+      <h3 class="font-bold text-base mb-4">📇 紙の名刺を登録</h3>
+
+      <label class="block text-xs text-neutral-500 mb-1.5">名前（わかれば・任意）</label>
+      <input id="paper-card-name" type="text" placeholder="例：山田太郎" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+
+      <label class="block text-xs text-neutral-500 mb-1.5">タグ（カンマ区切り・任意）</label>
+      <input id="paper-card-tags" type="text" placeholder="例：DIY,交流会" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+
+      <label class="block text-xs text-neutral-500 mb-1.5">ひとことメモ（任意）</label>
+      <textarea id="paper-card-memo" rows="2" placeholder="例：〇〇交流会で名刺交換" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
+
+      <label class="block text-xs text-neutral-500 mb-1.5">表面（必須）</label>
+      <input id="paper-card-front-input" type="file" accept="image/*" capture="environment" style="display:none" />
+      <button id="paper-card-front-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 表面を撮影・選択</button>
+      <img id="paper-card-front-preview" style="display:none" class="w-full max-h-40 object-cover rounded-xl mb-4" />
+
+      <label class="block text-xs text-neutral-500 mb-1.5">裏面（任意）</label>
+      <input id="paper-card-back-input" type="file" accept="image/*" capture="environment" style="display:none" />
+      <button id="paper-card-back-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 裏面を撮影・選択</button>
+      <img id="paper-card-back-preview" style="display:none" class="w-full max-h-40 object-cover rounded-xl mb-4" />
+
+      <div class="flex gap-3">
+        <button id="paper-card-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
+        <button id="paper-card-save" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">登録する</button>
+      </div>
+    </div>
+  </div>
   <script type="module">
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822g';
-    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822g';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822g';
-    import { filterAndSort } from './src/render.js?v=20260822g';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822g';
-    import { uploadPhoto } from './src/drive.js?v=20260822g';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822h';
+    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822h';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822h';
+    import { filterAndSort } from './src/render.js?v=20260822h';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo } from './src/storage.js?v=20260822h';
+    import { uploadPhoto } from './src/drive.js?v=20260822h';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
@@ -264,6 +306,19 @@
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
     const openSheetLinkEl = document.getElementById('open-sheet-link');
+    const paperCardOpenBtn = document.getElementById('paper-card-open-btn');
+    const paperCardModal = document.getElementById('paper-card-modal');
+    const paperCardNameInput = document.getElementById('paper-card-name');
+    const paperCardTagsInput = document.getElementById('paper-card-tags');
+    const paperCardMemoInput = document.getElementById('paper-card-memo');
+    const paperCardFrontInput = document.getElementById('paper-card-front-input');
+    const paperCardFrontBtn = document.getElementById('paper-card-front-btn');
+    const paperCardFrontPreview = document.getElementById('paper-card-front-preview');
+    const paperCardBackInput = document.getElementById('paper-card-back-input');
+    const paperCardBackBtn = document.getElementById('paper-card-back-btn');
+    const paperCardBackPreview = document.getElementById('paper-card-back-preview');
+    const paperCardCancelBtn = document.getElementById('paper-card-cancel');
+    const paperCardSaveBtn = document.getElementById('paper-card-save');
     const pageTitleEl = document.getElementById('page-title');
     const syncModalEl = document.getElementById('google-sync-modal');
     const syncCancelBtn = document.getElementById('google-sync-cancel');
@@ -383,6 +438,7 @@
         document.body.classList.add('google-synced');
         openSheetLinkEl.href = `https://docs.google.com/spreadsheets/d/${sheet.spreadsheetId}/edit`;
         openSheetLinkEl.style.display = 'flex';
+        paperCardOpenBtn.style.display = 'block';
         renderCards();
       } catch (err) {
         resetBackupBtn();
@@ -453,9 +509,17 @@
         card.appendChild(row);
 
         const linkText = b.name || '（名前未設定の名刺）';
-        if (isSafeHttpUrl(b.url)) {
+        if (b.url && isSafeHttpUrl(b.url)) {
           const link = document.createElement('a');
           link.href = b.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = linkText;
+          row.appendChild(link);
+        } else if (b.frontPhotoUrl) {
+          // 紙の名刺（URLなし・写真のみ）は表面写真を開くリンクにする
+          const link = document.createElement('a');
+          link.href = b.frontPhotoUrl;
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
           link.textContent = linkText;
@@ -474,7 +538,28 @@
         dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
         row.appendChild(dateSpan);
 
-        // 写真（Google連携済みでアップロード済みの場合のみ表示）
+        // 紙の名刺の表裏写真（Google連携済みの場合のみ）
+        if (syncMode === 'google' && (b.frontPhotoUrl || b.backPhotoUrl)) {
+          const cardPhotosRow = document.createElement('div');
+          cardPhotosRow.className = 'card-photos-row';
+          [['表', b.frontPhotoUrl], ['裏', b.backPhotoUrl]].forEach(([label, url]) => {
+            if (!url) return;
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'card-photo-link';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = label + '面';
+            img.className = 'memo-photo-thumb';
+            link.appendChild(img);
+            cardPhotosRow.appendChild(link);
+          });
+          card.appendChild(cardPhotosRow);
+        }
+
+        // ひとことメモに添付した写真（Google連携済みでアップロード済みの場合のみ表示）
         if (syncMode === 'google' && b.photoUrl) {
           const photoThumb = document.createElement('img');
           photoThumb.src = b.photoUrl;
@@ -642,6 +727,92 @@
     });
     searchEl.addEventListener('input', renderCards);
     sortEl.addEventListener('change', renderCards);
+
+    // ── 紙の名刺を登録（Google連携済みの場合のみ使用） ──
+    let paperCardFrontBlob = null;
+    let paperCardBackBlob = null;
+
+    function resetPaperCardForm() {
+      paperCardNameInput.value = '';
+      paperCardTagsInput.value = '';
+      paperCardMemoInput.value = '';
+      paperCardFrontInput.value = '';
+      paperCardBackInput.value = '';
+      paperCardFrontBlob = null;
+      paperCardBackBlob = null;
+      paperCardFrontPreview.style.display = 'none';
+      paperCardFrontPreview.removeAttribute('src');
+      paperCardBackPreview.style.display = 'none';
+      paperCardBackPreview.removeAttribute('src');
+      paperCardFrontBtn.textContent = '📷 表面を撮影・選択';
+      paperCardBackBtn.textContent = '📷 裏面を撮影・選択';
+      paperCardSaveBtn.disabled = false;
+      paperCardSaveBtn.textContent = '登録する';
+    }
+
+    paperCardOpenBtn.addEventListener('click', () => {
+      resetPaperCardForm();
+      paperCardModal.style.display = 'flex';
+    });
+    paperCardCancelBtn.addEventListener('click', () => {
+      paperCardModal.style.display = 'none';
+    });
+    paperCardFrontBtn.addEventListener('click', () => paperCardFrontInput.click());
+    paperCardBackBtn.addEventListener('click', () => paperCardBackInput.click());
+
+    paperCardFrontInput.addEventListener('change', async () => {
+      const file = paperCardFrontInput.files[0];
+      if (!file) return;
+      try {
+        paperCardFrontBlob = await resizeImageFile(file);
+        paperCardFrontPreview.src = URL.createObjectURL(paperCardFrontBlob);
+        paperCardFrontPreview.style.display = 'block';
+        paperCardFrontBtn.textContent = '📷 表面を撮り直す';
+      } catch (err) {
+        await appAlert(describeGoogleSyncError(err, '写真の読み込み'));
+      }
+    });
+    paperCardBackInput.addEventListener('change', async () => {
+      const file = paperCardBackInput.files[0];
+      if (!file) return;
+      try {
+        paperCardBackBlob = await resizeImageFile(file);
+        paperCardBackPreview.src = URL.createObjectURL(paperCardBackBlob);
+        paperCardBackPreview.style.display = 'block';
+        paperCardBackBtn.textContent = '📷 裏面を撮り直す';
+      } catch (err) {
+        await appAlert(describeGoogleSyncError(err, '写真の読み込み'));
+      }
+    });
+
+    paperCardSaveBtn.addEventListener('click', async () => {
+      if (!paperCardFrontBlob) {
+        await appAlert('表面の写真は必須です。撮影・選択してください。');
+        return;
+      }
+      paperCardSaveBtn.disabled = true;
+      paperCardSaveBtn.textContent = '登録中...';
+      try {
+        const token = window.__accessToken;
+        const frontPhotoUrl = await uploadPhoto(token, paperCardFrontBlob, 'paper-card-front.jpg');
+        const backPhotoUrl = paperCardBackBlob ? await uploadPhoto(token, paperCardBackBlob, 'paper-card-back.jpg') : '';
+        const tags = paperCardTagsInput.value.split(',').map(t => t.trim()).filter(Boolean);
+        await appendBookmark(token, currentSheet.spreadsheetId, {
+          name: paperCardNameInput.value.trim(),
+          tags,
+          memo: paperCardMemoInput.value.trim(),
+          frontPhotoUrl,
+          backPhotoUrl,
+        });
+        allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
+        paperCardModal.style.display = 'none';
+        renderCards();
+      } catch (err) {
+        paperCardSaveBtn.disabled = false;
+        paperCardSaveBtn.textContent = '登録する';
+        await appAlert(describeGoogleSyncError(err, '紙の名刺の登録'));
+      }
+    });
   </script>
 </body>
 </html>
