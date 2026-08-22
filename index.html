@@ -295,15 +295,45 @@
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822j';
-    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822j';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822j';
-    import { filterAndSort } from './src/render.js?v=20260822j';
-    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822j';
-    import { uploadPhoto } from './src/drive.js?v=20260822j';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822k';
+    import { initGoogleAuth, requestLogin, requestSilentLogin } from './src/auth.js?v=20260822k';
+    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822k';
+    import { filterAndSort } from './src/render.js?v=20260822k';
+    import { saveLocal, listLocal, deleteLocal, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822k';
+    import { uploadPhoto } from './src/drive.js?v=20260822k';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const GOOGLE_LINKED_KEY = 'meishi_google_linked';
+    // アクセストークンのキャッシュ。Googleはこのアプリの構成(サーバーなし・
+    // リフレッシュトークンなし)ではトークンの自動更新を提供しないため、
+    // 発行済みトークンを期限内は使い回すことで「閉じてすぐ開き直す」場合の
+    // 再ログイン（モバイルSafariではアカウント選択画面が出てしまう）を避ける
+    const TOKEN_CACHE_KEY = 'meishi_google_token_cache';
+    // Googleのトークン有効期限ぎりぎりまで使うとAPI呼び出し中に切れる恐れが
+    // あるため、60秒の安全マージンを引いて「もう使わない」判定にする
+    const TOKEN_EXPIRY_MARGIN_MS = 60 * 1000;
+
+    function saveTokenCache(token, expiresInSeconds) {
+      if (!expiresInSeconds) return;
+      const expiresAt = Date.now() + expiresInSeconds * 1000 - TOKEN_EXPIRY_MARGIN_MS;
+      localStorage.setItem(TOKEN_CACHE_KEY, JSON.stringify({ token, expiresAt }));
+    }
+
+    function loadCachedToken() {
+      try {
+        const raw = localStorage.getItem(TOKEN_CACHE_KEY);
+        if (!raw) return null;
+        const { token, expiresAt } = JSON.parse(raw);
+        if (!token || !expiresAt || Date.now() >= expiresAt) return null;
+        return token;
+      } catch {
+        return null;
+      }
+    }
+
+    function clearTokenCache() {
+      localStorage.removeItem(TOKEN_CACHE_KEY);
+    }
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
     const memoBoxEl = document.getElementById('memo-box');
@@ -422,9 +452,13 @@
       });
     }
 
-    // 「Googleでバックアップ・同期する」を押した人だけがここに来る
-    async function backupFlow(token) {
+    // 「Googleでバックアップ・同期する」を押した人、または有効なキャッシュ
+    // トークンでの自動読み込み（listFlow参照）がここに来る。expiresInSecondsは
+    // 新規トークン取得時だけ渡され、キャッシュ再利用時は渡されない（渡された
+    // 場合のみキャッシュを上書き保存する）
+    async function backupFlow(token, expiresInSeconds) {
       window.__accessToken = token;
+      if (expiresInSeconds) saveTokenCache(token, expiresInSeconds);
       backupBtn.disabled = true;
       backupBtn.textContent = '連携しています...';
       try {
@@ -464,6 +498,11 @@
         paperCardOpenBtn.style.display = 'block';
         renderCards();
       } catch (err) {
+        // キャッシュしたトークンが実は失効していた場合（Google側で同意取り消し等）は
+        // キャッシュを消し、次回は素直に再ログインへ進めるようにする
+        if (/\(401\)|\(403\)/.test(err?.message || '')) {
+          clearTokenCache();
+        }
         resetBackupBtn();
         await appAlert('Google連携に失敗しました。もう一度お試しください。');
       }
@@ -783,9 +822,21 @@
 
       initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, handleSilentLoginFailure);
 
-      // 既に連携済みの端末なら、ポップアップやボタン操作なしで自動的に
-      // トークン再取得を試みる（失敗時はhandleSilentLoginFailureで
-      // 未連携表示に戻し、案内を出す）
+      if (isGoogleLinked()) {
+        const cachedToken = loadCachedToken();
+        if (cachedToken) {
+          // 有効期限内のトークンが残っていれば、それをそのまま使って
+          // データ取得する。Googleへの再ログインリクエスト自体を発生させない
+          // ため、モバイルSafariで起きる「勝手にアカウント選択画面が出る」
+          // 問題がここでは発生しない
+          backupFlow(cachedToken);
+          return;
+        }
+      }
+
+      // 既に連携済みの端末（かつ有効なトークンのキャッシュがない）なら、
+      // ポップアップやボタン操作なしで自動的にトークン再取得を試みる
+      // （失敗時はhandleSilentLoginFailureで未連携表示に戻し、案内を出す）
       if (isGoogleLinked()) {
         requestSilentLogin();
         // ポップアップがブラウザ側でブロックされる等の理由で、Google側の
