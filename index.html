@@ -166,6 +166,7 @@
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleでバックアップ・他の端末と同期する</button>
+      <p id="sync-title" style="display:none" class="text-xs font-semibold text-neutral-500 text-center mb-4">🔗 Google連携中 — NEXUA名刺ポケット</p>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -217,6 +218,7 @@
     const homeScreenNoticeEl = document.getElementById('home-screen-notice');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
+    const syncTitleEl = document.getElementById('sync-title');
     const syncModalEl = document.getElementById('google-sync-modal');
     const syncCancelBtn = document.getElementById('google-sync-cancel');
     const syncProceedBtn = document.getElementById('google-sync-proceed');
@@ -294,6 +296,7 @@
         allBookmarks = await listBookmarks(token, sheet.spreadsheetId);
         syncMode = 'google';
         backupBtn.textContent = 'Googleと同期済みです';
+        syncTitleEl.style.display = 'block';
         renderCards();
       } catch (err) {
         resetBackupBtn();
