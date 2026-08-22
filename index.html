@@ -204,17 +204,20 @@
       </div>
     </div>
     <div id="home-screen-notice" style="display:none" class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 leading-relaxed">
-      <strong>📱 iPhoneではホーム画面に保存してください</strong><br><br>
-      ①画面下部（または上部）の<strong>共有ボタン</strong>（四角に↑のアイコン）をタップ<br>
-      ②「<strong>ホーム画面に追加</strong>」を選択<br>
-      ③追加ダイアログの「<strong>Webアプリとして開く</strong>」は<strong>オフ</strong>にする<br>
-      ④「追加」をタップ<br><br>
-      オンのままだと、保存した内容が後で見えなくなることがあります。
-      <br><br>
-      <strong>🤖 Androidではホーム画面に保存してください</strong><br><br>
-      ①画面右上の<strong>⋮（メニュー）</strong>をタップ<br>
-      ②「<strong>ホーム画面に追加</strong>」（または「アプリをインストール」）を選択<br>
-      ③「追加」をタップ
+      <div id="home-screen-notice-ios">
+        <strong>📱 iPhoneではホーム画面に保存してください</strong><br><br>
+        ①画面下部（または上部）の<strong>共有ボタン</strong>（四角に↑のアイコン）をタップ<br>
+        ②「<strong>ホーム画面に追加</strong>」を選択<br>
+        ③追加ダイアログの「<strong>Webアプリとして開く</strong>」は<strong>オフ</strong>にする<br>
+        ④「追加」をタップ<br><br>
+        オンのままだと、保存した内容が後で見えなくなることがあります。
+      </div>
+      <div id="home-screen-notice-android" class="mt-4">
+        <strong>🤖 Androidではホーム画面に保存してください</strong><br><br>
+        ①画面右上の<strong>⋮（メニュー）</strong>をタップ<br>
+        ②「<strong>ホーム画面に追加</strong>」（または「アプリをインストール」）を選択<br>
+        ③「追加」をタップ
+      </div>
     </div>
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
@@ -346,6 +349,8 @@
     const memoSaveBtn = document.getElementById('memo-save-btn');
     const memoSavedMsgEl = document.getElementById('memo-saved-msg');
     const homeScreenNoticeEl = document.getElementById('home-screen-notice');
+    const homeScreenNoticeIosEl = document.getElementById('home-screen-notice-ios');
+    const homeScreenNoticeAndroidEl = document.getElementById('home-screen-notice-android');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
     const openSheetLinkEl = document.getElementById('open-sheet-link');
@@ -424,6 +429,15 @@
         : 'Googleでバックアップ・他の端末と同期する';
     }
 
+    // ホーム画面保存の案内をiPhone/Androidのどちらか一方だけに絞り込むための判定。
+    // どちらでもない場合（PCでの閲覧等）は両方表示したままにする
+    function detectMobilePlatform() {
+      const ua = navigator.userAgent;
+      if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+      if (/Android/.test(ua)) return 'android';
+      return 'other';
+    }
+
     // 保存モード: 認証不要で即座にこの端末内へ保存して終わり（1タップで完結）
     // ひとことメモは任意入力なので、保存自体はメモなしで即完了させる
     function saveFlow() {
@@ -431,6 +445,12 @@
       statusEl.textContent = `「${bookmark.name || '名前未設定の名刺'}」を保存しました。`;
       memoBoxEl.style.display = 'block';
       homeScreenNoticeEl.style.display = 'block';
+      const platform = detectMobilePlatform();
+      if (platform === 'ios') {
+        homeScreenNoticeAndroidEl.style.display = 'none';
+      } else if (platform === 'android') {
+        homeScreenNoticeIosEl.style.display = 'none';
+      }
       listLinkEl.style.display = 'block';
 
       memoInputEl.addEventListener('input', () => {
