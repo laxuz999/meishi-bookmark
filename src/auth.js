@@ -22,3 +22,11 @@ export function requestLogin() {
   if (!tokenClient) throw new Error('initGoogleAuthが先に呼ばれていません');
   tokenClient.requestAccessToken();
 }
+
+// 既に連携済みの端末で、ポップアップやアカウント選択を出さずにトークン再取得を試みる。
+// ユーザーがそのブラウザでGoogleにログイン済み・かつ過去にこのアプリへ同意済みなら
+// 無操作で成功し、そうでなければ黙って失敗する（呼び出し元がonErrorで通常のボタン表示に戻す）
+export function requestSilentLogin() {
+  if (!tokenClient) throw new Error('initGoogleAuthが先に呼ばれていません');
+  tokenClient.requestAccessToken({ prompt: '' });
+}
