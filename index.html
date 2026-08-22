@@ -788,6 +788,16 @@
       // 未連携表示に戻し、案内を出す）
       if (isGoogleLinked()) {
         requestSilentLogin();
+        // ポップアップがブラウザ側でブロックされる等の理由で、Google側の
+        // callbackが一度も呼ばれないまま止まることがある（「連携を確認して
+        // います...」で固まる）。一定時間で応答がなければ手動フォールバックに
+        // 切り替える。backupFlow/handleSilentLoginFailureのどちらかが既に
+        // 実行済みならbackupBtnの文言は変わっているはずなので二重発火はしない
+        setTimeout(() => {
+          if (backupBtn.textContent === '連携を確認しています...') {
+            handleSilentLoginFailure();
+          }
+        }, 4000);
       }
     }
 
