@@ -222,11 +222,7 @@
     </div>
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
-      <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleでバックアップ・他の端末と同期する</button>
-      <a id="open-sheet-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none" class="flex items-center justify-center gap-1.5 mb-4 text-xs text-sky-600 hover:text-sky-700 underline underline-offset-2">
-        📊 Googleスプレッドシートで開く（並べ替え・共有もできます）
-      </a>
-      <button id="paper-card-open-btn" style="display:none" class="w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺を登録</button>
+      <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">合言葉を発行して他の端末とも同期する</button>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -238,22 +234,33 @@
       <p class="text-[10px] text-neutral-400 text-center mt-6 leading-relaxed">iPhoneでホーム画面に追加する場合は、共有ボタンから「ホーム画面に追加」を選び、追加ダイアログの「Webアプリとして開く」をオフにしてください。オンのままだと保存した内容が見えなくなることがあります。</p>
     </div>
   </div>
-  <!-- Googleと同期する前に、これから何が起きるかを説明するモーダル -->
-  <div id="google-sync-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
+  <!-- 合言葉での同期を選ぶモーダル -->
+  <div id="pocket-choice-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed">
-      <h3 class="font-bold text-base mb-3">🔗 Googleと同期します</h3>
-      <p class="mb-2">「進める」の後、この順にタップしてください：</p>
-      <ol class="list-decimal list-inside space-y-1.5 mb-4 font-semibold">
-        <li>同期に使うGoogleアカウント</li>
-        <li>（警告が出た場合のみ）「詳細」→「（アプリ名）に移動」</li>
-        <li>「許可」</li>
-      </ol>
-      <p class="text-xs text-neutral-400 mb-4 leading-relaxed">
-        ①はアカウント選択画面です。②は本アプリが審査未申請のテスト運用中のため「Googleで確認されていないアプリ」という警告が出ることがある、というだけで問題ありません。③でこのアプリが作成したGoogleドライブ内のファイルへのアクセスを許可すると、自動で専用シートが作られ、保存済みの名刺データが同期されます。運営側はデータを一切保持しません。
-      </p>
+      <h3 class="font-bold text-base mb-3">🔑 他の端末と同期します</h3>
+      <p class="mb-4">はじめての方は合言葉を発行、すでに持っている方はその合言葉を入力してください。</p>
+      <div class="flex flex-col gap-3">
+        <button id="pocket-issue-btn" class="py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">新しく合言葉を発行する</button>
+        <button id="pocket-open-input-btn" class="py-2.5 rounded-xl border border-neutral-200 text-neutral-600 font-semibold text-sm hover:border-rose-400 hover:text-rose-500">持っている合言葉を入力する</button>
+        <button id="pocket-choice-cancel" class="py-2 text-neutral-400 text-xs">やめる</button>
+      </div>
+    </div>
+  </div>
+  <div id="pocket-code-shown-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed text-center">
+      <h3 class="font-bold text-base mb-3">🔑 合言葉が発行されました</h3>
+      <p id="pocket-code-display" class="text-2xl font-mono font-bold tracking-widest my-4 text-rose-500"></p>
+      <p class="text-xs text-neutral-500 mb-4">この合言葉を控えておいてください。他の端末で入力すると、同じ名刺一覧が見られます。忘れると復元できません。</p>
+      <button id="pocket-code-shown-ok" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md">ひかえました</button>
+    </div>
+  </div>
+  <div id="pocket-code-input-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed">
+      <h3 class="font-bold text-base mb-3">🔑 合言葉を入力してください</h3>
+      <input id="pocket-code-input" type="text" maxlength="8" placeholder="例: A7K9QZ2M" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm text-center font-mono tracking-widest uppercase focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
       <div class="flex gap-3">
-        <button id="google-sync-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
-        <button id="google-sync-proceed" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">進める</button>
+        <button id="pocket-code-input-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
+        <button id="pocket-code-input-ok" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">同期する</button>
       </div>
     </div>
   </div>
@@ -268,81 +275,21 @@
       </div>
     </div>
   </div>
-  <!-- 紙の名刺を撮影して登録するモーダル（Google連携済みの場合のみ使用） -->
-  <div id="paper-card-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 overflow-y-auto">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 my-8">
-      <h3 class="font-bold text-base mb-4">📇 紙の名刺を登録</h3>
-
-      <label class="block text-xs text-neutral-500 mb-1.5">名前（わかれば・任意）</label>
-      <input id="paper-card-name" type="text" placeholder="例：山田太郎" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
-
-      <label class="block text-xs text-neutral-500 mb-1.5">タグ（カンマ区切り・任意）</label>
-      <input id="paper-card-tags" type="text" placeholder="例：DIY,交流会" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
-
-      <label class="block text-xs text-neutral-500 mb-1.5">ひとことメモ（任意）</label>
-      <textarea id="paper-card-memo" rows="2" placeholder="例：〇〇交流会で名刺交換" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
-
-      <p class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 leading-relaxed">📱 スマホを<strong>横向き</strong>にして撮影すると、名刺全体がきれいに収まります</p>
-
-      <label class="block text-xs text-neutral-500 mb-1.5">表面（必須）</label>
-      <input id="paper-card-front-input" type="file" accept="image/*" capture="environment" style="display:none" />
-      <button id="paper-card-front-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 表面を撮影・選択</button>
-      <img id="paper-card-front-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
-
-      <label class="block text-xs text-neutral-500 mb-1.5">裏面（任意）</label>
-      <input id="paper-card-back-input" type="file" accept="image/*" capture="environment" style="display:none" />
-      <button id="paper-card-back-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 裏面を撮影・選択</button>
-      <img id="paper-card-back-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
-
-      <div class="flex gap-3">
-        <button id="paper-card-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
-        <button id="paper-card-save" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">登録する</button>
-      </div>
-    </div>
-  </div>
   <script type="module">
     // v=YYYYMMDD: src/配下のJSファイルを変更したら、ブラウザの古いキャッシュ参照による
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
-    import { parseBookmarkParams } from './src/logic.js?v=20260822n';
-    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260822n';
-    import { findSheet, createSheet, appendBookmark, listBookmarks, updateMemo, updateTags, updatePhotoUrl, deleteBookmark } from './src/sheets.js?v=20260822n';
-    import { filterAndSort } from './src/render.js?v=20260822n';
-    import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822n';
-    import { uploadPhoto } from './src/drive.js?v=20260822n';
+    import { parseBookmarkParams } from './src/logic.js?v=20260822p';
+    import { issueCode, getBookmarks, saveBookmarks } from './src/pocketApi.js?v=20260822p';
+    import { filterAndSort } from './src/render.js?v=20260822p';
+    import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822p';
 
-    const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
-    const GOOGLE_LINKED_KEY = 'meishi_google_linked';
-    // アクセストークンのキャッシュ。Googleはこのアプリの構成(サーバーなし・
-    // リフレッシュトークンなし)ではトークンの自動更新を提供しないため、
-    // 発行済みトークンを期限内は使い回すことで「閉じてすぐ開き直す」場合の
-    // 再ログイン（モバイルSafariではアカウント選択画面が出てしまう）を避ける
-    const TOKEN_CACHE_KEY = 'meishi_google_token_cache';
-    // Googleのトークン有効期限ぎりぎりまで使うとAPI呼び出し中に切れる恐れが
-    // あるため、60秒の安全マージンを引いて「もう使わない」判定にする
-    const TOKEN_EXPIRY_MARGIN_MS = 60 * 1000;
+    const POCKET_CODE_KEY = 'meishi_pocket_code';
 
-    function saveTokenCache(token, expiresInSeconds) {
-      if (!expiresInSeconds) return;
-      const expiresAt = Date.now() + expiresInSeconds * 1000 - TOKEN_EXPIRY_MARGIN_MS;
-      localStorage.setItem(TOKEN_CACHE_KEY, JSON.stringify({ token, expiresAt }));
+    function getSavedPocketCode() {
+      return localStorage.getItem(POCKET_CODE_KEY);
     }
 
-    function loadCachedToken() {
-      try {
-        const raw = localStorage.getItem(TOKEN_CACHE_KEY);
-        if (!raw) return null;
-        const { token, expiresAt } = JSON.parse(raw);
-        if (!token || !expiresAt || Date.now() >= expiresAt) return null;
-        return token;
-      } catch {
-        return null;
-      }
-    }
-
-    function clearTokenCache() {
-      localStorage.removeItem(TOKEN_CACHE_KEY);
-    }
     const bookmark = parseBookmarkParams(new URLSearchParams(location.search));
     const statusEl = document.getElementById('status');
     const memoBoxEl = document.getElementById('memo-box');
@@ -354,24 +301,18 @@
     const homeScreenNoticeAndroidEl = document.getElementById('home-screen-notice-android');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
-    const openSheetLinkEl = document.getElementById('open-sheet-link');
-    const paperCardOpenBtn = document.getElementById('paper-card-open-btn');
-    const paperCardModal = document.getElementById('paper-card-modal');
-    const paperCardNameInput = document.getElementById('paper-card-name');
-    const paperCardTagsInput = document.getElementById('paper-card-tags');
-    const paperCardMemoInput = document.getElementById('paper-card-memo');
-    const paperCardFrontInput = document.getElementById('paper-card-front-input');
-    const paperCardFrontBtn = document.getElementById('paper-card-front-btn');
-    const paperCardFrontPreview = document.getElementById('paper-card-front-preview');
-    const paperCardBackInput = document.getElementById('paper-card-back-input');
-    const paperCardBackBtn = document.getElementById('paper-card-back-btn');
-    const paperCardBackPreview = document.getElementById('paper-card-back-preview');
-    const paperCardCancelBtn = document.getElementById('paper-card-cancel');
-    const paperCardSaveBtn = document.getElementById('paper-card-save');
     const pageTitleEl = document.getElementById('page-title');
-    const syncModalEl = document.getElementById('google-sync-modal');
-    const syncCancelBtn = document.getElementById('google-sync-cancel');
-    const syncProceedBtn = document.getElementById('google-sync-proceed');
+    const pocketChoiceModal = document.getElementById('pocket-choice-modal');
+    const pocketIssueBtn = document.getElementById('pocket-issue-btn');
+    const pocketOpenInputBtn = document.getElementById('pocket-open-input-btn');
+    const pocketChoiceCancel = document.getElementById('pocket-choice-cancel');
+    const pocketCodeShownModal = document.getElementById('pocket-code-shown-modal');
+    const pocketCodeDisplay = document.getElementById('pocket-code-display');
+    const pocketCodeShownOk = document.getElementById('pocket-code-shown-ok');
+    const pocketCodeInputModal = document.getElementById('pocket-code-input-modal');
+    const pocketCodeInput = document.getElementById('pocket-code-input');
+    const pocketCodeInputCancel = document.getElementById('pocket-code-input-cancel');
+    const pocketCodeInputOk = document.getElementById('pocket-code-input-ok');
     const listUi = document.getElementById('list-ui');
     const cardsEl = document.getElementById('cards');
     const searchEl = document.getElementById('search');
@@ -414,20 +355,13 @@
       });
     }
 
-    let currentSheet = null;
     let allBookmarks = [];
-    // 一覧の表示元。'local' = このブラウザのlocalStorage、'google' = Googleスプレッドシート
+    // 一覧の表示元。'local' = このブラウザのlocalStorage、'pocket' = 合言葉で同期中
     let syncMode = 'local';
 
-    function isGoogleLinked() {
-      return localStorage.getItem(GOOGLE_LINKED_KEY) === '1';
-    }
-
-    function resetBackupBtn() {
+    function showLocalOnlyUi() {
       backupBtn.disabled = false;
-      backupBtn.textContent = isGoogleLinked()
-        ? 'タップしてGoogle側の一覧を表示'
-        : 'Googleでバックアップ・他の端末と同期する';
+      backupBtn.textContent = '合言葉を発行して他の端末とも同期する';
     }
 
     // ホーム画面保存の案内をiPhone/Androidのどちらか一方だけに絞り込むための判定。
@@ -463,59 +397,31 @@
       });
     }
 
-    // 「Googleでバックアップ・同期する」を押した人、または有効なキャッシュ
-    // トークンでの自動読み込み（listFlow参照）がここに来る。expiresInSecondsは
-    // 新規トークン取得時だけ渡され、キャッシュ再利用時は渡されない（渡された
-    // 場合のみキャッシュを上書き保存する）
-    async function backupFlow(token, expiresInSeconds) {
-      window.__accessToken = token;
-      if (expiresInSeconds) saveTokenCache(token, expiresInSeconds);
-      backupBtn.disabled = true;
-      backupBtn.textContent = '連携しています...';
+    // 合言葉で同期する。ローカルの新規分をアップロードしてから、最新の一覧を取得する
+    async function syncWithPocketCode(code) {
       try {
-        let sheet = await findSheet(token);
-        if (!sheet) sheet = await createSheet(token);
-        currentSheet = sheet;
-
-        if (!isGoogleLinked()) {
-          // 初回連携: それまでこの端末に貯まっていたローカルデータをまとめてアップロード
-          for (const b of listLocal()) {
-            await appendBookmark(token, sheet.spreadsheetId, b);
-          }
-          localStorage.setItem(GOOGLE_LINKED_KEY, '1');
-        } else {
-          // 2回目以降の同期: 前回の同期以降にこの端末だけで加わった変更
-          // （新規保存・メモ編集）をGoogle側へ反映してから取得する。
-          // これをしないと、ローカルでの編集がGoogle側の古いデータでの
-          // 上書き表示によって「消えた」ように見えてしまう
-          const remoteList = await listBookmarks(token, sheet.spreadsheetId);
-          for (const localB of listLocal()) {
-            const match = remoteList.find(r => r.url === localB.url);
-            if (!match) {
-              await appendBookmark(token, sheet.spreadsheetId, localB);
-            } else if ((localB.memo || '') !== (match.memo || '')) {
-              await updateMemo(token, sheet.spreadsheetId, match.rowIndex, localB.memo || '');
-            }
+        const remote = await getBookmarks(code);
+        if (!remote.success) throw new Error(remote.error || '合言葉が見つかりません');
+        const remoteList = remote.bookmarks;
+        const localList = listLocal();
+        const merged = [...remoteList];
+        for (const localB of localList) {
+          if (!remoteList.some((r) => r.url === localB.url)) {
+            merged.push(localB);
           }
         }
+        const saveRes = await saveBookmarks(code, merged);
+        if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
 
-        allBookmarks = await listBookmarks(token, sheet.spreadsheetId);
-        syncMode = 'google';
-        backupBtn.textContent = 'Googleと同期済みです';
-        pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
+        allBookmarks = merged;
+        syncMode = 'pocket';
+        backupBtn.textContent = '同期済みです';
+        pageTitleEl.textContent = '合言葉で同期中 - NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
-        openSheetLinkEl.href = `https://docs.google.com/spreadsheets/d/${sheet.spreadsheetId}/edit`;
-        openSheetLinkEl.style.display = 'flex';
-        paperCardOpenBtn.style.display = 'block';
         renderCards();
       } catch (err) {
-        // キャッシュしたトークンが実は失効していた場合（Google側で同意取り消し等）は
-        // キャッシュを消し、次回は素直に再ログインへ進めるようにする
-        if (/\(401\)|\(403\)/.test(err?.message || '')) {
-          clearTokenCache();
-        }
-        resetBackupBtn();
-        await appAlert('Google連携に失敗しました。もう一度お試しください。');
+        await appAlert('同期に失敗しました。もう一度お試しください。');
+        showLocalOnlyUi();
       }
     }
 
@@ -528,41 +434,7 @@
       }
     }
 
-    // 選んだ写真を、Driveへのアップロード前にcanvasで縮小・JPEG圧縮する
-    // （スマホのカメラ写真は数MBになりがちなため）
-    function resizeImageFile(file, maxDim = 1600, quality = 0.8) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            let { width, height } = img;
-            if (width > maxDim || height > maxDim) {
-              if (width > height) {
-                height = Math.round(height * (maxDim / width));
-                width = maxDim;
-              } else {
-                width = Math.round(width * (maxDim / height));
-                height = maxDim;
-              }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            canvas.toBlob((blob) => {
-              if (blob) resolve(blob); else reject(new Error('画像の変換に失敗しました'));
-            }, 'image/jpeg', quality);
-          };
-          img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
-          img.src = e.target.result;
-        };
-        reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // Google API呼び出し失敗時、原因に応じた案内文を返す
+    // API呼び出し失敗時、原因に応じた案内文を返す
     // （401/403はアクセストークンの期限切れが濃厚なので、再接続を促す）
     function describeGoogleSyncError(err, action) {
       console.error(`${action}に失敗:`, err);
@@ -648,9 +520,12 @@
           saveBtn.addEventListener('click', async () => {
             const newTags = input.value.split(',').map(t => t.trim()).filter(Boolean);
             try {
-              if (syncMode === 'google') {
-                await updateTags(window.__accessToken, currentSheet.spreadsheetId, b.rowIndex, newTags);
-                allBookmarks = allBookmarks.map(x => x.rowIndex === b.rowIndex ? { ...x, tags: newTags } : x);
+              if (syncMode === 'pocket') {
+                const code = getSavedPocketCode();
+                const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
+                const res = await saveBookmarks(code, updated);
+                if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
+                allBookmarks = updated;
               } else {
                 updateLocalTags(b.id, newTags);
                 allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, tags: newTags } : x);
@@ -661,36 +536,6 @@
             }
           });
         });
-
-        // 紙の名刺の表裏写真（Google連携済みの場合のみ）
-        if (syncMode === 'google' && (b.frontPhotoUrl || b.backPhotoUrl)) {
-          const cardPhotosRow = document.createElement('div');
-          cardPhotosRow.className = 'card-photos-row';
-          [['表', b.frontPhotoUrl], ['裏', b.backPhotoUrl]].forEach(([label, url]) => {
-            if (!url) return;
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.className = 'card-photo-link';
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = label + '面';
-            img.className = 'card-photo-thumb';
-            link.appendChild(img);
-            cardPhotosRow.appendChild(link);
-          });
-          card.appendChild(cardPhotosRow);
-        }
-
-        // ひとことメモに添付した写真（Google連携済みでアップロード済みの場合のみ表示）
-        if (syncMode === 'google' && b.photoUrl) {
-          const photoThumb = document.createElement('img');
-          photoThumb.src = b.photoUrl;
-          photoThumb.alt = '';
-          photoThumb.className = 'memo-photo-thumb';
-          card.appendChild(photoThumb);
-        }
 
         // ひとことメモ（後から編集可能）
         const memoRow = document.createElement('div');
@@ -722,44 +567,6 @@
           actions.appendChild(saveBtn);
           actions.appendChild(cancelBtn);
           editArea.appendChild(textarea);
-
-          // 写真の追加・変更（Google連携済みの場合のみ）
-          if (syncMode === 'google') {
-            const photoInput = document.createElement('input');
-            photoInput.type = 'file';
-            photoInput.accept = 'image/*';
-            photoInput.capture = 'environment';
-            photoInput.style.display = 'none';
-
-            const photoBtn = document.createElement('button');
-            photoBtn.type = 'button';
-            photoBtn.className = 'memo-photo-btn';
-            photoBtn.textContent = b.photoUrl ? '📷 写真を変更' : '📷 写真を追加';
-            photoBtn.addEventListener('click', () => photoInput.click());
-
-            photoInput.addEventListener('change', async () => {
-              const file = photoInput.files[0];
-              if (!file) return;
-              photoBtn.disabled = true;
-              photoBtn.textContent = 'アップロード中...';
-              try {
-                const blob = await resizeImageFile(file);
-                const url = await uploadPhoto(window.__accessToken, blob, `nexua-memo-${b.rowIndex}.jpg`);
-                await updatePhotoUrl(window.__accessToken, currentSheet.spreadsheetId, b.rowIndex, url);
-                allBookmarks = allBookmarks.map(x => x.rowIndex === b.rowIndex ? { ...x, photoUrl: url } : x);
-                renderCards();
-              } catch (err) {
-                photoBtn.disabled = false;
-                photoBtn.textContent = b.photoUrl ? '📷 写真を変更' : '📷 写真を追加';
-                photoInput.value = '';
-                await appAlert(describeGoogleSyncError(err, '写真のアップロード'));
-              }
-            });
-
-            editArea.appendChild(photoBtn);
-            editArea.appendChild(photoInput);
-          }
-
           editArea.appendChild(actions);
           card.replaceChild(editArea, memoRow);
           textarea.focus();
@@ -770,9 +577,12 @@
           saveBtn.addEventListener('click', async () => {
             const newMemo = textarea.value.trim();
             try {
-              if (syncMode === 'google') {
-                await updateMemo(window.__accessToken, currentSheet.spreadsheetId, b.rowIndex, newMemo);
-                allBookmarks = allBookmarks.map(x => x.rowIndex === b.rowIndex ? { ...x, memo: newMemo } : x);
+              if (syncMode === 'pocket') {
+                const code = getSavedPocketCode();
+                const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
+                const res = await saveBookmarks(code, updated);
+                if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
+                allBookmarks = updated;
               } else {
                 updateLocalMemo(b.id, newMemo);
                 allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, memo: newMemo } : x);
@@ -790,14 +600,12 @@
           const target = b.name || '（名前未設定の名刺）';
           if (!(await appConfirm(`「${target}」を削除します。よろしいですか？`))) return;
           try {
-            if (syncMode === 'google') {
-              await deleteBookmark(window.__accessToken, currentSheet.spreadsheetId, currentSheet.gid, b.rowIndex);
-              allBookmarks = allBookmarks
-                .filter(x => x.rowIndex !== b.rowIndex)
-                .map(x => x.rowIndex > b.rowIndex ? { ...x, rowIndex: x.rowIndex - 1 } : x);
-              // Google側だけでなく、この端末のローカルデータからも消しておかないと、
-              // 次回の差分同期（ローカルにあってGoogle側にない分をアップロード）で
-              // 削除したはずの名刺が復活してしまう
+            if (syncMode === 'pocket') {
+              const code = getSavedPocketCode();
+              const updated = allBookmarks.filter((x) => x !== b);
+              const res = await saveBookmarks(code, updated);
+              if (!res.success) throw new Error(res.error || '削除に失敗しました');
+              allBookmarks = updated;
               deleteLocalByUrl(b.url);
             } else {
               deleteLocal(b.id);
@@ -814,7 +622,6 @@
       }
     }
 
-    // 一覧モード: まずこの端末のローカルデータを表示するだけ（ログイン不要）
     function listFlow() {
       allBookmarks = listLocal();
       syncMode = 'local';
@@ -822,30 +629,16 @@
       listUi.style.display = 'block';
       renderCards();
 
-      initGoogleAuth(GOOGLE_CLIENT_ID, backupFlow, resetBackupBtn);
-
-      if (isGoogleLinked()) {
-        const cachedToken = loadCachedToken();
-        if (cachedToken) {
-          // 有効期限内のトークンが残っていれば、それをそのまま使って
-          // データ取得する。Googleへの再ログインリクエスト自体を発生させない
-          // ため、勝手にアカウント選択画面が出ることはない
-          pageTitleEl.textContent = 'Google by NEXUA名刺ポケット';
-          document.body.classList.add('google-synced');
-          backupBtn.disabled = true;
-          backupBtn.textContent = '連携を確認しています...';
-          backupFlow(cachedToken);
-          return;
-        }
+      const savedCode = getSavedPocketCode();
+      if (savedCode) {
+        pageTitleEl.textContent = '合言葉で同期中 - NEXUA名刺ポケット';
+        document.body.classList.add('google-synced');
+        backupBtn.disabled = true;
+        backupBtn.textContent = '同期しています...';
+        syncWithPocketCode(savedCode);
+      } else {
+        showLocalOnlyUi();
       }
-
-      // トークンのキャッシュが無い/切れている場合、Googleへ自動で
-      // 問い合わせることはしない（サイレント再ログインは、モバイルSafari等で
-      // 勝手にアカウント選択画面を表示してしまうことがあるため使わない）。
-      // 連携済みなら「タップしてGoogle側の一覧を表示」、未連携なら
-      // 「Googleでバックアップ・他の端末と同期する」とだけ表示し、
-      // タップされた時だけGoogleとやり取りする
-      resetBackupBtn();
     }
 
     window.addEventListener('load', () => {
@@ -855,108 +648,50 @@
         listFlow();
       }
     });
-    // Googleとの同期は、いきなりログインへ飛ばさず、
-    // まず「これから何が起きるか」を説明するモーダルを挟む
     backupBtn.addEventListener('click', () => {
-      syncModalEl.style.display = 'flex';
+      pocketChoiceModal.style.display = 'flex';
     });
-    syncCancelBtn.addEventListener('click', () => {
-      syncModalEl.style.display = 'none';
+    pocketChoiceCancel.addEventListener('click', () => {
+      pocketChoiceModal.style.display = 'none';
     });
-    syncProceedBtn.addEventListener('click', () => {
-      syncModalEl.style.display = 'none';
+    pocketIssueBtn.addEventListener('click', async () => {
+      pocketChoiceModal.style.display = 'none';
       backupBtn.disabled = true;
-      backupBtn.textContent = '連携しています...';
-      requestLogin();
+      backupBtn.textContent = '発行しています...';
+      try {
+        const res = await issueCode();
+        if (!res.success) throw new Error(res.error || '発行に失敗しました');
+        localStorage.setItem(POCKET_CODE_KEY, res.code);
+        pocketCodeDisplay.textContent = res.code;
+        pocketCodeShownModal.style.display = 'flex';
+      } catch (err) {
+        await appAlert('合言葉の発行に失敗しました。もう一度お試しください。');
+        showLocalOnlyUi();
+      }
+    });
+    pocketCodeShownOk.addEventListener('click', async () => {
+      pocketCodeShownModal.style.display = 'none';
+      await syncWithPocketCode(getSavedPocketCode());
+    });
+    pocketOpenInputBtn.addEventListener('click', () => {
+      pocketChoiceModal.style.display = 'none';
+      pocketCodeInput.value = '';
+      pocketCodeInputModal.style.display = 'flex';
+    });
+    pocketCodeInputCancel.addEventListener('click', () => {
+      pocketCodeInputModal.style.display = 'none';
+    });
+    pocketCodeInputOk.addEventListener('click', async () => {
+      const code = pocketCodeInput.value.trim().toUpperCase();
+      if (!code) return;
+      pocketCodeInputModal.style.display = 'none';
+      localStorage.setItem(POCKET_CODE_KEY, code);
+      backupBtn.disabled = true;
+      backupBtn.textContent = '同期しています...';
+      await syncWithPocketCode(code);
     });
     searchEl.addEventListener('input', renderCards);
     sortEl.addEventListener('change', renderCards);
-
-    // ── 紙の名刺を登録（Google連携済みの場合のみ使用） ──
-    let paperCardFrontBlob = null;
-    let paperCardBackBlob = null;
-
-    function resetPaperCardForm() {
-      paperCardNameInput.value = '';
-      paperCardTagsInput.value = '';
-      paperCardMemoInput.value = '';
-      paperCardFrontInput.value = '';
-      paperCardBackInput.value = '';
-      paperCardFrontBlob = null;
-      paperCardBackBlob = null;
-      paperCardFrontPreview.style.display = 'none';
-      paperCardFrontPreview.removeAttribute('src');
-      paperCardBackPreview.style.display = 'none';
-      paperCardBackPreview.removeAttribute('src');
-      paperCardFrontBtn.textContent = '📷 表面を撮影・選択';
-      paperCardBackBtn.textContent = '📷 裏面を撮影・選択';
-      paperCardSaveBtn.disabled = false;
-      paperCardSaveBtn.textContent = '登録する';
-    }
-
-    paperCardOpenBtn.addEventListener('click', () => {
-      resetPaperCardForm();
-      paperCardModal.style.display = 'flex';
-    });
-    paperCardCancelBtn.addEventListener('click', () => {
-      paperCardModal.style.display = 'none';
-    });
-    paperCardFrontBtn.addEventListener('click', () => paperCardFrontInput.click());
-    paperCardBackBtn.addEventListener('click', () => paperCardBackInput.click());
-
-    paperCardFrontInput.addEventListener('change', async () => {
-      const file = paperCardFrontInput.files[0];
-      if (!file) return;
-      try {
-        paperCardFrontBlob = await resizeImageFile(file);
-        paperCardFrontPreview.src = URL.createObjectURL(paperCardFrontBlob);
-        paperCardFrontPreview.style.display = 'block';
-        paperCardFrontBtn.textContent = '📷 表面を撮り直す';
-      } catch (err) {
-        await appAlert(describeGoogleSyncError(err, '写真の読み込み'));
-      }
-    });
-    paperCardBackInput.addEventListener('change', async () => {
-      const file = paperCardBackInput.files[0];
-      if (!file) return;
-      try {
-        paperCardBackBlob = await resizeImageFile(file);
-        paperCardBackPreview.src = URL.createObjectURL(paperCardBackBlob);
-        paperCardBackPreview.style.display = 'block';
-        paperCardBackBtn.textContent = '📷 裏面を撮り直す';
-      } catch (err) {
-        await appAlert(describeGoogleSyncError(err, '写真の読み込み'));
-      }
-    });
-
-    paperCardSaveBtn.addEventListener('click', async () => {
-      if (!paperCardFrontBlob) {
-        await appAlert('表面の写真は必須です。撮影・選択してください。');
-        return;
-      }
-      paperCardSaveBtn.disabled = true;
-      paperCardSaveBtn.textContent = '登録中...';
-      try {
-        const token = window.__accessToken;
-        const frontPhotoUrl = await uploadPhoto(token, paperCardFrontBlob, 'paper-card-front.jpg');
-        const backPhotoUrl = paperCardBackBlob ? await uploadPhoto(token, paperCardBackBlob, 'paper-card-back.jpg') : '';
-        const tags = paperCardTagsInput.value.split(',').map(t => t.trim()).filter(Boolean);
-        await appendBookmark(token, currentSheet.spreadsheetId, {
-          name: paperCardNameInput.value.trim(),
-          tags,
-          memo: paperCardMemoInput.value.trim(),
-          frontPhotoUrl,
-          backPhotoUrl,
-        });
-        allBookmarks = await listBookmarks(token, currentSheet.spreadsheetId);
-        paperCardModal.style.display = 'none';
-        renderCards();
-      } catch (err) {
-        paperCardSaveBtn.disabled = false;
-        paperCardSaveBtn.textContent = '登録する';
-        await appAlert(describeGoogleSyncError(err, '紙の名刺の登録'));
-      }
-    });
   </script>
 </body>
 </html>
