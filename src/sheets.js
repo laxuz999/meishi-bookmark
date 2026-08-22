@@ -80,15 +80,20 @@ export async function createSheet(token) {
 // values.append は「既存の表の幅」をGoogle側が自動検出して書き込み先を決めるため、
 // 表の幅がヘッダーと食い違っている（過去にG/H列を使ったことがない等）シートでは
 // 列がズレて書き込まれることがある（実際に発生した不具合）。
-// 現在のA列のデータ行数を数え、その次の行番号へ直接PUTすることでズレを防ぐ
+// 現在のデータ行数を数え、その次の行番号へ直接PUTすることでズレを防ぐ。
+//
+// 重大な過去のバグ: 以前はA列(url)だけを見て行数を数えていたが、紙の名刺は
+// urlを持たない（A列が空）ため、Google側がその行を「存在しない」ものとして
+// 数え漏らし、次に追加するデータが紙の名刺の行に上書きされて消えてしまう
+// 事故があった。savedAt(D列)は常に値が入るため、これを含む範囲で数える
 async function getNextRowIndex(token, spreadsheetId) {
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:A`, {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A2:H`, {
     headers: authHeader(token),
   });
   await checkOk(res);
   const data = await res.json();
   const rows = data.values || [];
-  return rows.length + 1;
+  return rows.length + 2;
 }
 
 export async function appendBookmark(token, spreadsheetId, bookmark) {

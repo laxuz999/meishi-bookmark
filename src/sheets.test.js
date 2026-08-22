@@ -91,7 +91,7 @@ test('appendBookmark: 現在の行数を数えて、次の行番号へ直接書�
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
     call++;
-    if (call === 1) return { status: 200, ok: true, json: async () => ({ values: [['url'], ['https://nexua.tech/#zz0']] }) }; // ヘッダー+既存1行=2行
+    if (call === 1) return { status: 200, ok: true, json: async () => ({ values: [['https://nexua.tech/#zz0', '田中']] }) }; // 既存データ1行
     return { status: 200, ok: true, json: async () => ({}) };
   };
   await appendBookmark('tok', 'sheet123', {
@@ -100,7 +100,7 @@ test('appendBookmark: 現在の行数を数えて、次の行番号へ直接書�
     frontPhotoUrl: 'https://drive.google.com/thumbnail?id=front1', backPhotoUrl: 'https://drive.google.com/thumbnail?id=back1',
   });
   assert.equal(calls.length, 2);
-  assert.match(calls[0].url, /values\/bookmarks!A:A/);
+  assert.match(calls[0].url, /values\/bookmarks!A2:H/);
   assert.match(calls[1].url, /values\/bookmarks!A3:H3/);
   assert.equal(calls[1].options.method, 'PUT');
   const body = JSON.parse(calls[1].options.body);
@@ -111,6 +111,34 @@ test('appendBookmark: 現在の行数を数えて、次の行番号へ直接書�
   assert.equal(body.values[0][5], 'https://drive.google.com/uc?export=view&id=abc');
   assert.equal(body.values[0][6], 'https://drive.google.com/thumbnail?id=front1');
   assert.equal(body.values[0][7], 'https://drive.google.com/thumbnail?id=back1');
+});
+
+// 重大な過去のバグの再発防止テスト: 紙の名刺(url無し)は以前の実装だと
+// A列だけを見て行数を数えていたため「存在しない行」として数え漏らされ、
+// 次に追加するデータがその行に上書きされて消えてしまっていた
+test('appendBookmark: 既存データに紙の名刺（url無し）が含まれていても、行数を正しく数えて上書きしない', async () => {
+  let call = 0;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    call++;
+    if (call === 1) {
+      // 1行目: 通常の名刺(url有り)、2行目: 紙の名刺(url=A列が空)
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({
+          values: [
+            ['https://nexua.tech/#zz0', '田中', '', '2026-08-22T00:00:00.000Z'],
+            ['', '紙の名刺太郎', '', '2026-08-22T01:00:00.000Z', '', '', 'https://drive.google.com/thumbnail?id=front1'],
+          ],
+        }),
+      };
+    }
+    return { status: 200, ok: true, json: async () => ({}) };
+  };
+  await appendBookmark('tok', 'sheet123', { name: '新規太郎', tags: [] });
+  // 既存2行(データ2〜3行目)の次、4行目に書き込まれるべき（3行目の紙の名刺を上書きしてはいけない）
+  assert.match(calls[1].url, /values\/bookmarks!A4:H4/);
 });
 
 test('appendBookmark: url省略・memo・photoUrl等省略時は空文字を送る（紙の名刺登録を想定）', async () => {
