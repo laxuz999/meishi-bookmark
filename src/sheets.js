@@ -1,5 +1,6 @@
 const SHEET_NAME = 'NEXUAブックマーク';
 const TAB_NAME = 'bookmarks';
+const HEADER = ['url', 'name', 'tags', 'savedAt', 'memo', 'photoUrl', 'frontPhotoUrl', 'backPhotoUrl'];
 
 function authHeader(token) {
   return { Authorization: `Bearer ${token}` };
@@ -10,6 +11,24 @@ async function checkOk(res) {
     const body = await res.json().catch(() => ({}));
     throw new Error(`Google API error (${res.status}): ${body.error?.message || res.statusText}`);
   }
+}
+
+// 既存シートのヘッダーが古い列数のまま（過去の機能追加前に作られた等）だった場合、
+// 見た目上どの列が何か分からなくなるため、不足分を補って最新のヘッダーに揃える
+async function ensureHeader(token, spreadsheetId) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:H1`, {
+    headers: authHeader(token),
+  });
+  await checkOk(res);
+  const data = await res.json();
+  const current = data.values?.[0] || [];
+  if (current.length >= HEADER.length) return;
+  const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:H1?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values: [HEADER] }),
+  });
+  await checkOk(headerRes);
 }
 
 export async function findSheet(token) {
@@ -30,6 +49,7 @@ export async function findSheet(token) {
   await checkOk(metaRes);
   const meta = await metaRes.json();
   const gid = meta.sheets?.[0]?.properties?.sheetId ?? 0;
+  await ensureHeader(token, spreadsheetId);
   return { spreadsheetId, gid };
 }
 
@@ -50,11 +70,25 @@ export async function createSheet(token) {
   const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A1:H1?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [['url', 'name', 'tags', 'savedAt', 'memo', 'photoUrl', 'frontPhotoUrl', 'backPhotoUrl']] }),
+    body: JSON.stringify({ values: [HEADER] }),
   });
   await checkOk(headerRes);
 
   return { spreadsheetId, gid };
+}
+
+// values.append は「既存の表の幅」をGoogle側が自動検出して書き込み先を決めるため、
+// 表の幅がヘッダーと食い違っている（過去にG/H列を使ったことがない等）シートでは
+// 列がズレて書き込まれることがある（実際に発生した不具合）。
+// 現在のA列のデータ行数を数え、その次の行番号へ直接PUTすることでズレを防ぐ
+async function getNextRowIndex(token, spreadsheetId) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:A`, {
+    headers: authHeader(token),
+  });
+  await checkOk(res);
+  const data = await res.json();
+  const rows = data.values || [];
+  return rows.length + 1;
 }
 
 export async function appendBookmark(token, spreadsheetId, bookmark) {
@@ -68,8 +102,9 @@ export async function appendBookmark(token, spreadsheetId, bookmark) {
     bookmark.frontPhotoUrl || '',
     bookmark.backPhotoUrl || '',
   ];
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A:H:append?valueInputOption=RAW`, {
-    method: 'POST',
+  const nextRow = await getNextRowIndex(token, spreadsheetId);
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${TAB_NAME}!A${nextRow}:H${nextRow}?valueInputOption=RAW`, {
+    method: 'PUT',
     headers: { ...authHeader(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [row] }),
   });

@@ -25,21 +25,41 @@ function mockFetch(responseBody, status = 200) {
   };
 }
 
-test('findSheet: 既存シートが見つかれば実際のgidを取得して返す', async () => {
+test('findSheet: 既存シートが見つかれば実際のgidを取得して返す（ヘッダーが最新なら更新しない）', async () => {
   let call = 0;
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options });
     call++;
     if (call === 1) return { status: 200, ok: true, json: async () => ({ files: [{ id: 'sheet123' }] }) };
-    return { status: 200, ok: true, json: async () => ({ sheets: [{ properties: { sheetId: 42 } }] }) };
+    if (call === 2) return { status: 200, ok: true, json: async () => ({ sheets: [{ properties: { sheetId: 42 } }] }) };
+    return { status: 200, ok: true, json: async () => ({ values: [['url', 'name', 'tags', 'savedAt', 'memo', 'photoUrl', 'frontPhotoUrl', 'backPhotoUrl']] }) };
   };
   const result = await findSheet('tok');
   assert.equal(result.spreadsheetId, 'sheet123');
   assert.equal(result.gid, 42);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.match(calls[0].url, /drive\/v3\/files/);
   assert.match(calls[1].url, /spreadsheets\/sheet123/);
+  assert.match(calls[2].url, /values\/bookmarks!A1:H1/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer tok');
+});
+
+test('findSheet: 既存シートのヘッダーが古い（列数不足）なら最新に拡張する', async () => {
+  let call = 0;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    call++;
+    if (call === 1) return { status: 200, ok: true, json: async () => ({ files: [{ id: 'sheet123' }] }) };
+    if (call === 2) return { status: 200, ok: true, json: async () => ({ sheets: [{ properties: { sheetId: 0 } }] }) };
+    if (call === 3) return { status: 200, ok: true, json: async () => ({ values: [['url', 'name', 'tags', 'savedAt']] }) };
+    return { status: 200, ok: true, json: async () => ({}) };
+  };
+  await findSheet('tok');
+  assert.equal(calls.length, 4);
+  assert.match(calls[3].url, /values\/bookmarks!A1:H1/);
+  assert.equal(calls[3].options.method, 'PUT');
+  const body = JSON.parse(calls[3].options.body);
+  assert.deepEqual(body.values[0], ['url', 'name', 'tags', 'savedAt', 'memo', 'photoUrl', 'frontPhotoUrl', 'backPhotoUrl']);
 });
 
 test('findSheet: 見つからなければnullを返す（シート情報取得は呼ばない）', async () => {
@@ -66,16 +86,24 @@ test('createSheet: 新規作成してヘッダー行を書き込む', async () =
   assert.match(calls[1].url, /values\/bookmarks!A1:H1/);
 });
 
-test('appendBookmark: 行を追記するAPIを呼ぶ', async () => {
-  mockFetch({});
+test('appendBookmark: 現在の行数を数えて、次の行番号へ直接書き込む（append APIの列ズレ回避）', async () => {
+  let call = 0;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    call++;
+    if (call === 1) return { status: 200, ok: true, json: async () => ({ values: [['url'], ['https://nexua.tech/#zz0']] }) }; // ヘッダー+既存1行=2行
+    return { status: 200, ok: true, json: async () => ({}) };
+  };
   await appendBookmark('tok', 'sheet123', {
     url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY', '釣り'], memo: '展示会で交換',
     photoUrl: 'https://drive.google.com/uc?export=view&id=abc',
     frontPhotoUrl: 'https://drive.google.com/thumbnail?id=front1', backPhotoUrl: 'https://drive.google.com/thumbnail?id=back1',
   });
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].url, /values\/bookmarks!A:H:append/);
-  const body = JSON.parse(calls[0].options.body);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /values\/bookmarks!A:A/);
+  assert.match(calls[1].url, /values\/bookmarks!A3:H3/);
+  assert.equal(calls[1].options.method, 'PUT');
+  const body = JSON.parse(calls[1].options.body);
   assert.equal(body.values[0][0], 'https://nexua.tech/#zz1');
   assert.equal(body.values[0][1], '山田');
   assert.equal(body.values[0][2], 'DIY,釣り');
@@ -86,9 +114,9 @@ test('appendBookmark: 行を追記するAPIを呼ぶ', async () => {
 });
 
 test('appendBookmark: url省略・memo・photoUrl等省略時は空文字を送る（紙の名刺登録を想定）', async () => {
-  mockFetch({});
+  mockFetch({ values: [] });
   await appendBookmark('tok', 'sheet123', { name: '山田', tags: [] });
-  const body = JSON.parse(calls[0].options.body);
+  const body = JSON.parse(calls[1].options.body);
   assert.equal(body.values[0][0], '');
   assert.equal(body.values[0][4], '');
   assert.equal(body.values[0][5], '');
