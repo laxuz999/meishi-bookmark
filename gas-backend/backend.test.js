@@ -52,6 +52,11 @@ function post(payload) {
   return JSON.parse(doPost({ postData: { contents: JSON.stringify(payload) } })._t);
 }
 
+function get(params) {
+  const doGet = vm.runInContext('doGet', sandbox);
+  return JSON.parse(doGet({ parameter: params })._t);
+}
+
 test('issue_code: 8桁の合言葉を発行する', () => {
   const res = post({ action: 'issue_code' });
   assert.equal(res.success, true);
@@ -108,4 +113,27 @@ test('未知のactionはUNKNOWN_ACTIONエラー', () => {
   const res = post({ action: 'nonexistent' });
   assert.equal(res.success, false);
   assert.equal(res.code, 'UNKNOWN_ACTION');
+});
+
+test('doGET: issue_code（write系）はMETHOD_NOT_ALLOWEDエラー', () => {
+  const res = get({ action: 'issue_code' });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'METHOD_NOT_ALLOWED');
+});
+
+test('doGET: save_bookmarks（write系）はMETHOD_NOT_ALLOWEDエラー', () => {
+  const res = get({ action: 'save_bookmarks', code: 'DUMMY', bookmarks: [] });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'METHOD_NOT_ALLOWED');
+});
+
+test('doGET: get_bookmarks（read系）はPOSTと同じく動作可能', () => {
+  // POSTで合言葉を発行
+  const { code } = post({ action: 'issue_code' });
+  post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'test', name: 'テスト' }] });
+  // GETでget_bookmarksを呼び出し
+  const res = get({ action: 'get_bookmarks', code });
+  assert.equal(res.success, true);
+  assert.equal(res.bookmarks.length, 1);
+  assert.equal(res.bookmarks[0].name, 'テスト');
 });

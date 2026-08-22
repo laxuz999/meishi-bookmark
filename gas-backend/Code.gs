@@ -9,7 +9,14 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 8;
 
 function doGet(e) {
-  return handle(e && e.parameter ? e.parameter : {});
+  const p = e && e.parameter ? e.parameter : {};
+  // GETリクエストでは書き込み系アクション（issue_code, save_bookmarks）を実行させない
+  // ブラウザのリンクプレビューボット等が意図せずアクセスして副作用を起こすリスク対策
+  const route = ROUTES[p.action];
+  if (route && route.write) {
+    return jsonResponse({ success: false, error: 'GET非対応', code: 'METHOD_NOT_ALLOWED' });
+  }
+  return handle(p);
 }
 
 function doPost(e) {
