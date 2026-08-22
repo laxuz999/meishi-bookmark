@@ -21,7 +21,16 @@ export async function findSheet(token) {
   const data = await res.json();
   if (!data.files || data.files.length === 0) return null;
   const spreadsheetId = data.files[0].id;
-  return { spreadsheetId, gid: 0 };
+  // gidは決め打ちせず、実際のシートのsheetIdを取得する
+  // （決め打ち0のままだと、何らかの理由でシートの実gidが0でない場合に
+  //   削除・更新APIが誤ったシートを指定してしまう）
+  const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.sheetId`, {
+    headers: authHeader(token),
+  });
+  await checkOk(metaRes);
+  const meta = await metaRes.json();
+  const gid = meta.sheets?.[0]?.properties?.sheetId ?? 0;
+  return { spreadsheetId, gid };
 }
 
 export async function createSheet(token) {

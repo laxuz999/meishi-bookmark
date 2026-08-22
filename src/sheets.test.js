@@ -25,18 +25,28 @@ function mockFetch(responseBody, status = 200) {
   };
 }
 
-test('findSheet: 既存シートが見つかればidとgidを返す', async () => {
-  mockFetch({ files: [{ id: 'sheet123' }] });
+test('findSheet: 既存シートが見つかれば実際のgidを取得して返す', async () => {
+  let call = 0;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    call++;
+    if (call === 1) return { status: 200, ok: true, json: async () => ({ files: [{ id: 'sheet123' }] }) };
+    return { status: 200, ok: true, json: async () => ({ sheets: [{ properties: { sheetId: 42 } }] }) };
+  };
   const result = await findSheet('tok');
   assert.equal(result.spreadsheetId, 'sheet123');
+  assert.equal(result.gid, 42);
+  assert.equal(calls.length, 2);
   assert.match(calls[0].url, /drive\/v3\/files/);
+  assert.match(calls[1].url, /spreadsheets\/sheet123/);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer tok');
 });
 
-test('findSheet: 見つからなければnullを返す', async () => {
+test('findSheet: 見つからなければnullを返す（シート情報取得は呼ばない）', async () => {
   mockFetch({ files: [] });
   const result = await findSheet('tok');
   assert.equal(result, null);
+  assert.equal(calls.length, 1);
 });
 
 test('createSheet: 新規作成してヘッダー行を書き込む', async () => {
