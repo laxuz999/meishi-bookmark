@@ -28,12 +28,42 @@ let sandbox;
 
 beforeEach(() => {
   const sheets = {};
+  const spreadsheets = {}; // ID -> { sheets: {...}, getId: () => id } の形式
+  let nextSpreadsheetId = 1;
+  const scriptProps = {}; // PropertiesServiceが永続的に保存するデータ
+
+  const createMockSpreadsheet = () => ({
+    sheets: {},
+    getId: () => `mock-ss-${nextSpreadsheetId}`,
+  });
+
   sandbox = {
     console,
     SpreadsheetApp: {
       getActiveSpreadsheet: () => ({
         getSheetByName: (n) => sheets[n] || null,
         insertSheet: (n) => (sheets[n] = new MockSheet()),
+      }),
+      create: (name) => {
+        const id = `mock-ss-${nextSpreadsheetId++}`;
+        const ss = createMockSpreadsheet();
+        spreadsheets[id] = ss;
+        return {
+          getSheetByName: (n) => ss.sheets[n] || null,
+          insertSheet: (n) => (ss.sheets[n] = new MockSheet()),
+          getId: () => id,
+        };
+      },
+      openById: (id) => ({
+        getSheetByName: (n) => spreadsheets[id].sheets[n] || null,
+        insertSheet: (n) => (spreadsheets[id].sheets[n] = new MockSheet()),
+        getId: () => id,
+      }),
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: (key) => scriptProps[key] || null,
+        setProperty: (key, value) => { scriptProps[key] = value; },
       }),
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },

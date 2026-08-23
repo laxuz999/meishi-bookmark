@@ -66,13 +66,21 @@ function jsonResponse(obj) {
 }
 
 function getSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const props = PropertiesService.getScriptProperties();
+  const spreadsheetId = props.getProperty('SPREADSHEET_ID');
+  const ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : createNewSpreadsheet(props);
   let sheet = ss.getSheetByName(SHEET_USERS);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_USERS);
     sheet.appendRow(['code', 'createdAt', 'stripeCustomerEmail', 'bookmarksJson']);
   }
   return sheet;
+}
+
+function createNewSpreadsheet(props) {
+  const ss = SpreadsheetApp.create('NEXUA名刺ポケット 合言葉データ');
+  props.setProperty('SPREADSHEET_ID', ss.getId());
+  return ss;
 }
 
 // 1-indexedの行番号を返す（ヘッダー行を除く）。見つからなければnull
