@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>決済完了 - NEXUA名刺ポケット</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: linear-gradient(160deg, #fff7ed 0%, #fef3f2 35%, #eff6ff 70%, #f0fdfa 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-neutral-800">
+  <div class="max-w-md mx-auto px-6 py-12">
+    <h1 class="text-lg font-bold text-center text-neutral-800 mb-6 tracking-tight">🔑 合言葉の発行</h1>
+
+    <div id="waiting-ui" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-6 text-sm leading-relaxed text-center">
+      <p id="waiting-message">決済を確認しています...</p>
+    </div>
+
+    <div id="code-ui" style="display:none" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-6 text-sm leading-relaxed text-center">
+      <h3 class="font-bold text-base mb-3">🔑 合言葉が発行されました</h3>
+      <p id="code-display" class="text-2xl font-mono font-bold tracking-widest my-4 text-rose-500"></p>
+      <button id="code-copy-btn" class="w-full mb-3 py-2 rounded-xl border border-rose-200 text-rose-500 font-semibold text-xs hover:bg-rose-50 transition-colors">📋 コピーする</button>
+      <p class="text-xs text-neutral-500 mb-4">この合言葉を控えておいてください。他の端末で入力すると、同じ名刺一覧が見られます。忘れると復元できません。</p>
+      <a id="code-go-to-list" href="./" class="block w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md text-center">一覧画面へ</a>
+    </div>
+
+    <div id="error-ui" style="display:none" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-6 text-sm leading-relaxed text-center">
+      <p id="error-message"></p>
+      <a href="./" class="inline-block mt-4 text-rose-500 underline text-xs">一覧画面へもどる</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { claimCode } from './src/pocketApi.js?v=20260823e';
+
+    const POCKET_CODE_KEY = 'meishi_pocket_code';
+    const waitingUi = document.getElementById('waiting-ui');
+    const waitingMessage = document.getElementById('waiting-message');
+    const codeUi = document.getElementById('code-ui');
+    const codeDisplay = document.getElementById('code-display');
+    const codeCopyBtn = document.getElementById('code-copy-btn');
+    const errorUi = document.getElementById('error-ui');
+    const errorMessage = document.getElementById('error-message');
+
+    const sessionId = new URLSearchParams(location.search).get('session_id');
+
+    const POLL_INTERVAL_MS = 2000;
+    const POLL_MAX_ATTEMPTS = 30; // 2秒×30回 = 最大60秒待つ
+
+    async function poll() {
+      if (!sessionId) {
+        errorMessage.textContent = '決済情報が見つかりません。決済リンクからやり直してください。';
+        waitingUi.style.display = 'none';
+        errorUi.style.display = 'block';
+        return;
+      }
+      for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+        const res = await claimCode(sessionId);
+        if (res.success) {
+          // 合言葉が確実に取得できた時点で初めてlocalStorageに保存する
+          // （index.htmlの既存方針: 検証成功までは書き込まない、を踏襲）
+          localStorage.setItem(POCKET_CODE_KEY, res.code);
+          codeDisplay.textContent = res.code;
+          waitingUi.style.display = 'none';
+          codeUi.style.display = 'block';
+          return;
+        }
+        if (res.code !== 'PENDING') {
+          errorMessage.textContent = res.error || '合言葉の取得に失敗しました。';
+          waitingUi.style.display = 'none';
+          errorUi.style.display = 'block';
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+      waitingMessage.textContent = '決済は完了していますが、合言葉の準備に時間がかかっています。少し時間を置いてこのページを再読み込みしてください。';
+    }
+
+    codeCopyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(codeDisplay.textContent);
+        codeCopyBtn.textContent = '✓ コピーしました';
+        setTimeout(() => { codeCopyBtn.textContent = '📋 コピーする'; }, 2000);
+      } catch (err) {
+        // クリップボード権限が無い環境でも合言葉は画面に表示されているため、
+        // ボタンの見た目だけ変えず静かに失敗させる（手動でも書き写せる）
+      }
+    });
+
+    poll();
+  </script>
+</body>
+</html>

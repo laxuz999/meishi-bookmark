@@ -231,15 +231,6 @@
       </div>
     </div>
   </div>
-  <div id="pocket-code-shown-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed text-center">
-      <h3 class="font-bold text-base mb-3">🔑 合言葉が発行されました</h3>
-      <p id="pocket-code-display" class="text-2xl font-mono font-bold tracking-widest my-4 text-rose-500"></p>
-      <button id="pocket-code-copy-btn" class="w-full mb-3 py-2 rounded-xl border border-rose-200 text-rose-500 font-semibold text-xs hover:bg-rose-50 transition-colors">📋 コピーする</button>
-      <p class="text-xs text-neutral-500 mb-4">この合言葉を控えておいてください。他の端末で入力すると、同じ名刺一覧が見られます。忘れると復元できません。</p>
-      <button id="pocket-code-shown-ok" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md">ひかえました</button>
-    </div>
-  </div>
   <div id="pocket-code-input-modal" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed">
       <h3 class="font-bold text-base mb-3">🔑 合言葉を入力してください</h3>
@@ -266,7 +257,7 @@
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
     import { parseBookmarkParams } from './src/logic.js?v=20260822p';
-    import { issueCode, getBookmarks, saveBookmarks, isPaperCard, describeApiError } from './src/pocketApi.js?v=20260823d';
+    import { getBookmarks, saveBookmarks, isPaperCard, describeApiError } from './src/pocketApi.js?v=20260823e';
     import { filterAndSort } from './src/render.js?v=20260822p';
     import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822p';
     import { createAppDialog } from './src/dialog.js?v=20260823c';
@@ -302,10 +293,6 @@
     const pocketOpenInputBtn = document.getElementById('pocket-open-input-btn');
     const pocketUnlinkBtn = document.getElementById('pocket-unlink-btn');
     const pocketChoiceCancel = document.getElementById('pocket-choice-cancel');
-    const pocketCodeShownModal = document.getElementById('pocket-code-shown-modal');
-    const pocketCodeDisplay = document.getElementById('pocket-code-display');
-    const pocketCodeCopyBtn = document.getElementById('pocket-code-copy-btn');
-    const pocketCodeShownOk = document.getElementById('pocket-code-shown-ok');
     const pocketCodeInputModal = document.getElementById('pocket-code-input-modal');
     const pocketCodeInput = document.getElementById('pocket-code-input');
     const pocketCodeInputCancel = document.getElementById('pocket-code-input-cancel');
@@ -319,9 +306,6 @@
     let allBookmarks = [];
     // 一覧の表示元。'local' = このブラウザのlocalStorage、'pocket' = 合言葉で同期中
     let syncMode = 'local';
-    // 発行直後、まだ「ひかえました」が押されていない合言葉。検証（同期成功）が
-    // 取れるまではlocalStorageに書き込まず、この変数だけで保持する
-    let pendingIssuedCode = null;
 
     function showLocalOnlyUi() {
       backupBtn.disabled = false;
@@ -593,41 +577,13 @@
     });
     pocketIssueBtn.addEventListener('click', async () => {
       pocketChoiceModal.style.display = 'none';
-      // 既に合言葉を発行・入力済みの場合、無警告で上書きすると今のデータと
+      // 既に合言葉を発行・入力済みの場合、無警告で切り替えると今のデータと
       // 切り離されてしまうため、事前に確認する
       if (getSavedPocketCode()) {
         const proceed = await appConfirm('既に合言葉があります。新しく発行すると今のデータと切り離されます。よろしいですか？');
         if (!proceed) return;
       }
-      backupBtn.disabled = true;
-      backupBtn.textContent = '発行しています...';
-      try {
-        const res = await issueCode();
-        if (!res.success) throw new Error(describeApiError(res, '発行に失敗しました'));
-        // 検証（同期成功）が取れるまではlocalStorageに書き込まない
-        pendingIssuedCode = res.code;
-        pocketCodeDisplay.textContent = res.code;
-        pocketCodeShownModal.style.display = 'flex';
-      } catch (err) {
-        await appAlert(err.message || '合言葉の発行に失敗しました。もう一度お試しください。');
-        showLocalOnlyUi();
-      }
-    });
-    pocketCodeCopyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(pocketCodeDisplay.textContent);
-        pocketCodeCopyBtn.textContent = '✓ コピーしました';
-        setTimeout(() => {
-          pocketCodeCopyBtn.textContent = '📋 コピーする';
-        }, 2000);
-      } catch (err) {
-        await appAlert('コピーできませんでした。手動で書き写してください。');
-      }
-    });
-    pocketCodeShownOk.addEventListener('click', async () => {
-      pocketCodeShownModal.style.display = 'none';
-      await syncWithPocketCode(pendingIssuedCode);
-      pendingIssuedCode = null;
+      location.href = 'https://buy.stripe.com/cNi4gy6kE5KAgNm0gidby0b';
     });
     pocketOpenInputBtn.addEventListener('click', () => {
       pocketChoiceModal.style.display = 'none';
