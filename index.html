@@ -206,6 +206,7 @@
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">合言葉を発行して他の端末とも同期する</button>
       <a id="paper-card-link" href="./paper-card.html" style="display:none" class="block w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm text-center hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺</a>
+      <button id="export-btn" class="w-full mb-4 px-6 py-2.5 bg-white border border-neutral-200 rounded-2xl text-xs font-semibold text-neutral-500 hover:border-rose-300 hover:text-rose-500 transition-colors">💾 バックアップを書き出す（JSON）</button>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -293,6 +294,7 @@
     const homeScreenNoticeAndroidEl = document.getElementById('home-screen-notice-android');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
+    const exportBtn = document.getElementById('export-btn');
     const paperCardLinkEl = document.getElementById('paper-card-link');
     const pageTitleEl = document.getElementById('page-title');
     const pocketChoiceModal = document.getElementById('pocket-choice-modal');
@@ -653,6 +655,23 @@
     });
     searchEl.addEventListener('input', renderCards);
     sortEl.addEventListener('change', renderCards);
+
+    // 合言葉が使えなくなった場合等の手動退避用に、現在表示中の名刺データを
+    // そのままJSONファイルとしてダウンロードする（インポート機能は無い。
+    // 復元が必要な場合は運営に問い合わせる想定）
+    exportBtn.addEventListener('click', () => {
+      const json = JSON.stringify(allBookmarks, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      a.href = url;
+      a.download = `meishi-backup-${today}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
   </script>
 </body>
 </html>
