@@ -17,7 +17,7 @@
 
 ```
 1. 一覧画面「合言葉を発行して他の端末とも同期する」
-   → Stripe Payment Links(¥300・買い切り)へ遷移（新規タブ）
+   → Stripe Payment Links(¥300・買い切り)へ遷移（同一タブ、`location.href`。localStorageの連続性のため新規タブではなく同一タブ遷移とした。実装が正）
 2. 決済完了
    ├─ Stripe → GAS Webhook(?stripe_webhook=1, checkout.session.completed)
    │    → イベントID実在確認(Stripe API照会、署名検証の代替)

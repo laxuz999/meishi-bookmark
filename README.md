@@ -44,6 +44,6 @@ npm test
 
 スプレッドシートに保存されるのは名刺のテキスト情報（url/name/tags/memo）と、紙の名刺の写真URL（frontPhotoUrl/backPhotoUrl、Google Drive上のリンク）。写真の実体はGAS backend側には一切送られず、常にユーザー自身のGoogleアカウントに直接アップロードされる。
 
-`get_bookmarks`/`save_bookmarks`は合言葉ごとに1分あたり30回までのレート制限がある（`CacheService`、超過時は`RATE_LIMITED`エラー）。
+`get_bookmarks`/`save_bookmarks`は合言葉ごとに1分あたり30回までのレート制限がある（`CacheService`、超過時は`RATE_LIMITED`エラー）。`claim_code`（決済完了後のポーリング用）はStripe Checkoutの`session_id`ごとに1分あたり60回まで。
 
 設計の経緯・詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`を参照。

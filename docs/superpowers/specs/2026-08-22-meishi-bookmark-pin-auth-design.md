@@ -71,9 +71,11 @@
 
 | action | 認証 | 内容 |
 |---|---|---|
-| `issue_code` | Stripe決済完了の検証 | 新しい合言葉を発行してusersシートに1行追加 |
+| `issue_code`（※初期案。現在は`claim_code`に置き換わっている、下記参照） | Stripe決済完了の検証 | 新しい合言葉を発行してusersシートに1行追加 |
 | `get_bookmarks` | 合言葉 | その合言葉のbookmarksJsonを返す |
 | `save_bookmarks` | 合言葉 | bookmarksJsonを丸ごと上書き保存（クライアント側で組み立てた最新の配列を渡す） |
+
+※ 2026-08-23の決済化実装で、`issue_code`（誰でも呼べる無料の発行API）は廃止された。現在の合言葉発行フローは`claim_code`（Stripe決済完了Webhookが発行した合言葉をStripe Checkoutの`session_id`で受け取る）に置き換わっている。詳細は`docs/superpowers/specs/2026-08-23-meishi-bookmark-stripe-payment-design.md`を参照
 
 - 実行者は開発者権限（`USER_DEPLOYING`、NEXUA本体のappsscript.jsonと同じ設定）。GAS Web AppのURLをクライアントJSから直接fetchする
 
