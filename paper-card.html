@@ -160,6 +160,13 @@
     <!-- 紙の名刺一覧（Google連携不要。合言葉のバックエンドから取得するだけ） -->
     <div id="paper-list-ui" style="display:none">
       <button id="paper-card-open-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">＋ 新しく登録する</button>
+      <div class="flex flex-col sm:flex-row gap-2 mb-4">
+        <input id="paper-search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+        <select id="paper-sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
+          <option value="newest">新しい順</option>
+          <option value="oldest">古い順</option>
+        </select>
+      </div>
       <p id="paper-list-status" class="text-sm text-neutral-500 text-center mb-4">読み込み中...</p>
       <div id="paper-cards" class="flex flex-col gap-3"></div>
     </div>
@@ -225,6 +232,7 @@
     import { getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
     import { createAppDialog } from './src/dialog.js?v=20260823c';
     import { renderEditableRow } from './src/inlineEditor.js?v=20260823c';
+    import { filterAndSort } from './src/render.js?v=20260823c';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const POCKET_CODE_KEY = 'meishi_pocket_code';
@@ -234,6 +242,8 @@
     const paperListStatus = document.getElementById('paper-list-status');
     const paperCardsEl = document.getElementById('paper-cards');
     const paperCardOpenBtn = document.getElementById('paper-card-open-btn');
+    const paperSearchEl = document.getElementById('paper-search');
+    const paperSortEl = document.getElementById('paper-sort');
     const paperCardModal = document.getElementById('paper-card-modal');
     const googleLinkNotice = document.getElementById('google-link-notice');
     const googleLinkBtn = document.getElementById('google-link-btn');
@@ -310,9 +320,12 @@
     }
 
     function renderPaperCards() {
-      const list = paperCardsOnly(allBookmarks);
+      const paperCardsAll = paperCardsOnly(allBookmarks);
+      const list = filterAndSort(paperCardsAll, paperSearchEl.value, paperSortEl.value);
       paperListStatus.style.display = list.length ? 'none' : 'block';
-      paperListStatus.textContent = 'まだ紙の名刺は登録されていません。';
+      paperListStatus.textContent = paperCardsAll.length
+        ? '検索条件に一致する紙の名刺がありません。'
+        : 'まだ紙の名刺は登録されていません。';
       paperCardsEl.innerHTML = '';
       for (const b of list) {
         const card = document.createElement('div');
@@ -547,6 +560,9 @@
       googleLinkBtn.disabled = false;
       googleLinkBtn.textContent = 'Googleと連携する';
     }
+
+    paperSearchEl.addEventListener('input', renderPaperCards);
+    paperSortEl.addEventListener('change', renderPaperCards);
 
     // ページを開いた時点ではGoogleとは一切通信しない。連携ボタンを押した
     // 時だけrequestLogin()を呼ぶ（自動サイレントログインは行わない。
