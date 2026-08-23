@@ -415,6 +415,11 @@
     // 後にのみ行う。こうしないと、誤入力した無効な合言葉で、既に保存されていた
     // 有効な合言葉を上書きして失ってしまう
     async function syncWithPocketCode(code) {
+      // 同期処理の「開始」時刻を最終同期時刻として使う（完了時刻ではない）。
+      // 完了時刻を使うと、この同期の実行中（通信にかかる時間）に別タブ等で
+      // 新しく保存された名刺のsavedAtがその完了時刻より前になってしまい、
+      // 次回以降ずっと「新規」と認識されずアップロードされなくなってしまう
+      const syncStartedAt = new Date().toISOString();
       try {
         const remote = await getBookmarks(code);
         if (!remote.success) throw new Error(remote.error || '合言葉が見つかりません');
@@ -443,7 +448,7 @@
         const saveRes = await saveBookmarks(code, merged);
         if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
 
-        localStorage.setItem(POCKET_LAST_SYNCED_KEY, new Date().toISOString());
+        localStorage.setItem(POCKET_LAST_SYNCED_KEY, syncStartedAt);
         allBookmarks = merged;
         syncMode = 'pocket';
         backupBtn.disabled = false;
@@ -745,6 +750,14 @@
     pocketCodeInputOk.addEventListener('click', async () => {
       const code = pocketCodeInput.value.trim().toUpperCase();
       if (!code) return;
+      // 既に別の合言葉で同期済みの状態で、それとは違う合言葉を入力した場合は
+      // 「発行」ボタンと同様に確認を挟む。無警告で切り替えると今のデータと
+      // 切り離されてしまうため
+      const existingCode = getSavedPocketCode();
+      if (existingCode && existingCode !== code) {
+        const proceed = await appConfirm(`現在「${existingCode}」で同期しています。別の合言葉に切り替えると、今のデータとは別のデータに切り替わります。よろしいですか？`);
+        if (!proceed) return;
+      }
       pocketCodeInputModal.style.display = 'none';
       backupBtn.disabled = true;
       backupBtn.textContent = '同期しています...';
