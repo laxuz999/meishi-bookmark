@@ -140,20 +140,22 @@ function postWebhook(payload) {
   return JSON.parse(result._t);
 }
 
-test('issue_code: 8桁の合言葉を発行する', () => {
-  const res = post({ action: 'issue_code' });
-  assert.equal(res.success, true);
-  assert.match(res.code, /^[A-Z0-9]{8}$/);
-});
-
-test('issue_code: 紛らわしい文字(0,O,1,I)を含まない', () => {
-  const seen = new Set();
-  for (let i = 0; i < 30; i++) {
-    seen.add(post({ action: 'issue_code' }).code);
-  }
-  const all = [...seen].join('');
-  assert.equal(/[0O1I]/.test(all), false);
-});
+// テスト用: Stripe決済完了を模して合言葉を1件発行するヘルパー。
+// 既存のpost({action:'issue_code'})を置き換える
+let issueTestCodeCounter = 0;
+function issueTestCode() {
+  issueTestCodeCounter += 1;
+  const sessionId = 'cs_test_auto' + issueTestCodeCounter;
+  const eventId = 'evt_test_auto' + issueTestCodeCounter;
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+  });
+  postWebhook({ id: eventId });
+  const claimRes = post({ action: 'claim_code', session_id: sessionId });
+  return claimRes.code;
+}
 
 test('generateCode: Utilities.getUuid()ベースで生成し、書式・偏りの無さを確認する', () => {
   // issueCode()のリトライループ（既存コード重複時は再生成）を経由すると
@@ -173,14 +175,14 @@ test('generateCode: Utilities.getUuid()ベースで生成し、書式・偏り�
 });
 
 test('get_bookmarks: 発行直後は空配列を返す', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const res = post({ action: 'get_bookmarks', code });
   assert.equal(res.success, true);
   assert.deepEqual(res.bookmarks, []);
 });
 
 test('save_bookmarks → get_bookmarksで保存した内容がそのまま読める', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const bookmarks = [{ url: 'https://nexua.tech/#zz1', name: '山田', tags: ['DIY'], memo: '展示会で交換' }];
   const saveRes = post({ action: 'save_bookmarks', code, bookmarks });
   assert.equal(saveRes.success, true);
@@ -189,7 +191,7 @@ test('save_bookmarks → get_bookmarksで保存した内容がそのまま読め
 });
 
 test('save_bookmarksは前回の内容を上書きする（追記ではない）', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'a', name: '1件目' }] });
   post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'b', name: '2件目' }] });
   const res = post({ action: 'get_bookmarks', code });
@@ -198,7 +200,7 @@ test('save_bookmarksは前回の内容を上書きする（追記ではない）
 });
 
 test('save_bookmarks: 件数上限(MAX_BOOKMARKS_COUNT)を超えるとTOO_MANY_BOOKMARKSエラー', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const MAX = vm.runInContext('MAX_BOOKMARKS_COUNT', sandbox);
   const tooMany = Array.from({ length: MAX + 1 }, (_, i) => ({ url: `u${i}`, name: `n${i}` }));
   const res = post({ action: 'save_bookmarks', code, bookmarks: tooMany });
@@ -210,7 +212,7 @@ test('save_bookmarks: 件数上限(MAX_BOOKMARKS_COUNT)を超えるとTOO_MANY_B
 });
 
 test('save_bookmarks: 件数上限ちょうどは保存できる（境界値）', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const MAX = vm.runInContext('MAX_BOOKMARKS_COUNT', sandbox);
   const exactly = Array.from({ length: MAX }, (_, i) => ({ url: `u${i}`, name: `n${i}` }));
   const res = post({ action: 'save_bookmarks', code, bookmarks: exactly });
@@ -218,7 +220,7 @@ test('save_bookmarks: 件数上限ちょうどは保存できる（境界値）'
 });
 
 test('save_bookmarks: JSON文字数上限(MAX_BOOKMARKS_JSON_LENGTH)を超えるとPAYLOAD_TOO_LARGEエラー', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const hugeMemo = 'x'.repeat(60000);
   const res = post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'a', name: 'n', memo: hugeMemo }] });
   assert.equal(res.success, false);
@@ -226,7 +228,7 @@ test('save_bookmarks: JSON文字数上限(MAX_BOOKMARKS_JSON_LENGTH)を超える
 });
 
 test('save_bookmarks: bookmarksが配列でない場合はエラーを返し、既存データは消さない', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'a', name: '既存データ' }] });
   const res = post({ action: 'save_bookmarks', code, bookmarks: 'not-an-array' });
   assert.equal(res.success, false);
@@ -261,13 +263,13 @@ test('findUserRow: 初回はシート全行をスキャンし、2回目以降は
   assert.equal(sheet.rangeScanCount, scanBefore + 1, '2回目はキャッシュヒットしてスキャンしないはず');
 });
 
-test('findUserRow: issue_code直後はキャッシュ済みのため、get_bookmarksで全行スキャンが発生しない', () => {
-  const { code } = post({ action: 'issue_code' });
+test('findUserRow: 合言葉発行直後はキャッシュ済みのため、get_bookmarksで全行スキャンが発生しない', () => {
+  const code = issueTestCode();
   const sheet = vm.runInContext('getSheet()', sandbox);
   const scanBefore = sheet.rangeScanCount;
   const res = post({ action: 'get_bookmarks', code });
   assert.equal(res.success, true);
-  assert.equal(sheet.rangeScanCount, scanBefore, 'issue_code時点でキャッシュ済みのためスキャンなしでヒットするはず');
+  assert.equal(sheet.rangeScanCount, scanBefore, '発行時点でキャッシュ済みのためスキャンなしでヒットするはず');
 });
 
 test('findUserRow: キャッシュがシートの実際の行とズレていたら、古いキャッシュを消してスキャンにフォールバックする', () => {
@@ -295,7 +297,7 @@ test('findUserRow: キャッシュがシートの実際の行とズレていた�
 });
 
 test('レート制限: 同じ合言葉への短時間の大量アクセスはRATE_LIMITEDエラー', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
   for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW; i++) {
     const res = post({ action: 'get_bookmarks', code });
@@ -307,7 +309,7 @@ test('レート制限: 同じ合言葉への短時間の大量アクセスはRAT
 });
 
 test('レート制限: save_bookmarks(write系)にもかかる', () => {
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
   for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW; i++) {
     post({ action: 'save_bookmarks', code, bookmarks: [] });
@@ -318,8 +320,8 @@ test('レート制限: save_bookmarks(write系)にもかかる', () => {
 });
 
 test('レート制限: 合言葉ごとに別々にカウントされる（片方が制限されてももう片方は影響しない）', () => {
-  const { code: codeA } = post({ action: 'issue_code' });
-  const { code: codeB } = post({ action: 'issue_code' });
+  const codeA = issueTestCode();
+  const codeB = issueTestCode();
   const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
   for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW + 1; i++) {
     post({ action: 'get_bookmarks', code: codeA });
@@ -334,12 +336,6 @@ test('未知のactionはUNKNOWN_ACTIONエラー', () => {
   assert.equal(res.code, 'UNKNOWN_ACTION');
 });
 
-test('doGET: issue_code（write系）はMETHOD_NOT_ALLOWEDエラー', () => {
-  const res = get({ action: 'issue_code' });
-  assert.equal(res.success, false);
-  assert.equal(res.code, 'METHOD_NOT_ALLOWED');
-});
-
 test('doGET: save_bookmarks（write系）はMETHOD_NOT_ALLOWEDエラー', () => {
   const res = get({ action: 'save_bookmarks', code: 'DUMMY', bookmarks: [] });
   assert.equal(res.success, false);
@@ -347,10 +343,8 @@ test('doGET: save_bookmarks（write系）はMETHOD_NOT_ALLOWEDエラー', () => 
 });
 
 test('doGET: get_bookmarks（read系）はPOSTと同じく動作可能', () => {
-  // POSTで合言葉を発行
-  const { code } = post({ action: 'issue_code' });
+  const code = issueTestCode();
   post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'test', name: 'テスト' }] });
-  // GETでget_bookmarksを呼び出し
   const res = get({ action: 'get_bookmarks', code });
   assert.equal(res.success, true);
   assert.equal(res.bookmarks.length, 1);
