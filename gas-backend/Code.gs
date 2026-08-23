@@ -121,14 +121,17 @@ function findUserRow(code) {
   if (!code) return null;
   const cache = CacheService.getScriptCache();
   const cacheKey = USER_ROW_CACHE_PREFIX + code;
+  const sheet = getSheet();
   const cachedRow = cache.get(cacheKey);
   if (cachedRow) {
     const row = Number(cachedRow);
     // キャッシュされた行が今も本当にその合言葉のものか確認する
     // （シート側で行の削除・並び替えが起きた場合のズレ対策）
-    if (getSheet().getRange(row, 1).getValue() === code) return row;
+    if (sheet.getRange(row, 1).getValue() === code) return row;
+    // ズレていた場合は古いキャッシュを消す（残すと以降の呼び出しのたびに
+    // 同じ無駄な検証読み取りを繰り返してしまう）
+    cache.remove(cacheKey);
   }
-  const sheet = getSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null; // ヘッダー行のみ、またはヘッダーすら無い
   const codes = sheet.getRange(2, 1, lastRow - 1, 1).getValues();

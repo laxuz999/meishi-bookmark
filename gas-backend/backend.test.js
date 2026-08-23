@@ -92,6 +92,7 @@ beforeEach(() => {
       getScriptCache: () => ({
         get: (key) => (cacheStore.has(key) ? cacheStore.get(key) : null),
         put: (key, value) => { cacheStore.set(key, value); },
+        remove: (key) => { cacheStore.delete(key); },
       }),
     },
     ContentService: {
@@ -243,6 +244,30 @@ test('findUserRow: issue_code直後はキャッシュ済みのため、get_bookm
   const res = post({ action: 'get_bookmarks', code });
   assert.equal(res.success, true);
   assert.equal(sheet.rangeScanCount, scanBefore, 'issue_code時点でキャッシュ済みのためスキャンなしでヒットするはず');
+});
+
+test('findUserRow: キャッシュがシートの実際の行とズレていたら、古いキャッシュを消してスキャンにフォールバックする', () => {
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  sheet.appendRow(['MANUALCODE', new Date().toISOString(), '', '[]']); // 行2
+  const findUserRow = vm.runInContext('findUserRow', sandbox);
+  const row1 = findUserRow('MANUALCODE');
+  assert.equal(row1, 2);
+
+  // シート側で行がズレた状況を再現（ヘッダーとMANUALCODEの間に1行挿入）。
+  // この時点でキャッシュはまだ古い行2を指したまま
+  sheet.rows.splice(1, 0, ['DUMMY', new Date().toISOString(), '', '[]']);
+
+  const scanBefore = sheet.rangeScanCount;
+  const row2 = findUserRow('MANUALCODE');
+  assert.equal(row2, 3, 'ズレを検知して正しい行(3)を返すはず');
+  assert.equal(sheet.rangeScanCount, scanBefore + 1, 'ズレを検知したらスキャンにフォールバックするはず');
+
+  // 古いキャッシュが消され、新しい行でキャッシュされているはずなので、
+  // 次回はスキャン無しでヒットする
+  const scanBefore2 = sheet.rangeScanCount;
+  const row3 = findUserRow('MANUALCODE');
+  assert.equal(row3, 3);
+  assert.equal(sheet.rangeScanCount, scanBefore2, '新しいキャッシュでヒットしスキャンしないはず');
 });
 
 test('レート制限: 同じ合言葉への短時間の大量アクセスはRATE_LIMITEDエラー', () => {
