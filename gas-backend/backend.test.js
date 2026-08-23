@@ -132,6 +132,14 @@ function get(params) {
   return JSON.parse(doGet({ parameter: params })._t);
 }
 
+// Stripe Webhookを模したdoPost呼び出し（?stripe_webhook=1相当）
+function postWebhook(payload) {
+  const doPost = vm.runInContext('doPost', sandbox);
+  const result = doPost({ postData: { contents: JSON.stringify(payload) }, parameter: { stripe_webhook: '1' } });
+  assert.equal(result._isHtml, true, 'Webhook応答はHtmlServiceで返るはず(302回避)');
+  return JSON.parse(result._t);
+}
+
 test('issue_code: 8桁の合言葉を発行する', () => {
   const res = post({ action: 'issue_code' });
   assert.equal(res.success, true);
@@ -424,3 +432,102 @@ test('doGET: claim_code（read系）はPOSTと同じく動作可能', () => {
 function registerStripeEvent(event) {
   mockStripeEvents[event.id] = event;
 }
+
+test('handleCheckoutCompleted: mode=payment, amount_total=300なら合言葉を発行してキャッシュに置く', () => {
+  const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  handleCheckoutCompleted({
+    id: 'cs_test_ok',
+    mode: 'payment',
+    payment_status: 'paid',
+    amount_total: 300,
+    customer_details: { email: 'buyer@example.com' },
+  });
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  const code = cache.get('claim_cs_test_ok');
+  assert.match(code, /^[A-Z0-9]{8}$/);
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  const row = sheet.rows.find((r) => r[0] === code);
+  assert.equal(row[2], 'buyer@example.com');
+});
+
+test('handleCheckoutCompleted: mode=subscriptionは無視する（買い切り以外は対象外）', () => {
+  const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  handleCheckoutCompleted({ id: 'cs_test_sub', mode: 'subscription', payment_status: 'paid', amount_total: 300 });
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  assert.equal(cache.get('claim_cs_test_sub'), null);
+});
+
+test('handleCheckoutCompleted: 想定外の金額は無視する（不正対策）', () => {
+  const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  handleCheckoutCompleted({ id: 'cs_test_wrongamount', mode: 'payment', payment_status: 'paid', amount_total: 1 });
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  assert.equal(cache.get('claim_cs_test_wrongamount'), null);
+});
+
+test('handleCheckoutCompleted: payment_statusがpaid以外は無視する', () => {
+  const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  handleCheckoutCompleted({ id: 'cs_test_unpaid', mode: 'payment', payment_status: 'unpaid', amount_total: 300 });
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  assert.equal(cache.get('claim_cs_test_unpaid'), null);
+});
+
+test('E2E: Stripe決済完了Webhook→claim_codeで合言葉を取得できる', () => {
+  const sessionId = 'cs_test_e2e';
+  const eventId = 'evt_test_e2e';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+  });
+
+  const webhookRes = postWebhook({ id: eventId });
+  assert.equal(webhookRes.success, true);
+
+  const claimRes = post({ action: 'claim_code', session_id: sessionId });
+  assert.equal(claimRes.success, true);
+  assert.match(claimRes.code, /^[A-Z0-9]{8}$/);
+
+  // 発行された合言葉でget_bookmarksが呼べること（通常フローと接続していることの確認）
+  const getRes = post({ action: 'get_bookmarks', code: claimRes.code });
+  assert.equal(getRes.success, true);
+  assert.deepEqual(getRes.bookmarks, []);
+});
+
+test('E2E: 同じWebhookイベントを2回送っても合言葉は1回しか発行されない(冪等性)', () => {
+  const sessionId = 'cs_test_dedupe';
+  const eventId = 'evt_test_dedupe';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+  });
+
+  const first = postWebhook({ id: eventId });
+  assert.equal(first.success, true);
+  const firstCode = post({ action: 'claim_code', session_id: sessionId }).code;
+
+  const second = postWebhook({ id: eventId });
+  assert.equal(second.skipped, 'duplicate');
+  const secondCode = post({ action: 'claim_code', session_id: sessionId }).code;
+
+  assert.equal(firstCode, secondCode, '重複Webhookで別の合言葉が発行されてはいけない');
+});
+
+test('handleStripeWebhook: 未登録(実在しない)イベントIDは拒否する', () => {
+  const res = postWebhook({ id: 'evt_forged' });
+  assert.equal(res.success, false);
+  assert.match(res.error, /verification failed/);
+});
+
+test('handleStripeWebhook: eventId無しはエラー', () => {
+  const res = postWebhook({});
+  assert.equal(res.success, false);
+  assert.equal(res.error, 'no event id');
+});
+
+test('handleStripeWebhook: 未対応のイベント種別は成功扱いで無視する', () => {
+  const eventId = 'evt_test_other';
+  registerStripeEvent({ id: eventId, type: 'customer.created', data: { object: {} } });
+  const res = postWebhook({ id: eventId });
+  assert.equal(res.success, true);
+});

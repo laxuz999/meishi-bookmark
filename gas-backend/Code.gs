@@ -26,6 +26,11 @@ function doPost(e) {
   } catch (err) {
     return jsonResponse({ success: false, error: 'invalid JSON', code: 'BAD_REQUEST' });
   }
+  // Stripe Webhook（URLクエリ ?stripe_webhook=1 で判別。ROUTESとは別処理・action不要）
+  // 302リダイレクト回避のためwebhookResponse(HtmlService)で返す
+  if (e.parameter && e.parameter.stripe_webhook) {
+    return webhookResponse(handleStripeWebhook(p));
+  }
   return handle(p);
 }
 
@@ -264,4 +269,57 @@ function claimCode(sessionId) {
     return { success: false, error: '決済の確認中です。少し待ってからもう一度お試しください', code: 'PENDING' };
   }
   return { success: true, code };
+}
+
+function webhookResponse(obj) {
+  // GAS Web AppはContentServiceで返すと必ず302リダイレクトを1回挟む仕様があり、
+  // StripeのWebhook配信はリダイレクトを追わず「失敗」扱いにするため、
+  // Webhook応答限定でHtmlServiceを使う（NEXUA本体gas_backend.jsと同じ対策）
+  return HtmlService.createHtmlOutput(JSON.stringify(obj));
+}
+
+// 買い切り(mode:'payment')の決済完了イベントのみを処理する。
+// サブスク(mode:'subscription')は対象外（このプロジェクトでは扱わない）
+function handleCheckoutCompleted(session) {
+  if (session.mode !== 'payment' || session.payment_status !== 'paid') return;
+  if (session.amount_total !== STRIPE_PRICE_JPY) return; // 想定外金額は無視（不正対策）
+  const email = (session.customer_details && session.customer_details.email) || '';
+  const result = issueCode(email);
+  CacheService.getScriptCache().put(CLAIM_CODE_CACHE_PREFIX + session.id, result.code, CLAIM_CODE_CACHE_TTL_SECONDS);
+}
+
+// Webhook本体: 冪等化 → Stripe APIで実在確認 → ロックして反映
+// （NEXUA本体gas_backend.jsのhandleStripeWebhookと同じ設計）
+function handleStripeWebhook(raw) {
+  const eventId = raw && raw.id;
+  if (!eventId) return { success: false, error: 'no event id' };
+
+  const cache = CacheService.getScriptCache();
+  const dedupeKey = 'stripe_evt_' + eventId;
+  if (cache.get(dedupeKey)) return { success: true, skipped: 'duplicate' };
+
+  let event;
+  try {
+    event = stripeApiGet('events/' + eventId);
+  } catch (err) {
+    return { success: false, error: 'verification failed: ' + err.message };
+  }
+  if (!event || event.id !== eventId) {
+    return { success: false, error: 'event verification mismatch' };
+  }
+
+  cache.put(dedupeKey, '1', 21600); // 6時間（CacheServiceの最大保持時間）
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20 * 1000)) return { success: false, error: 'busy' };
+  try {
+    if (event.type === 'checkout.session.completed') {
+      handleCheckoutCompleted(event.data.object);
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  } finally {
+    lock.releaseLock();
+  }
 }
