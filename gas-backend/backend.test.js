@@ -50,6 +50,7 @@ beforeEach(() => {
   const spreadsheets = {}; // ID -> { sheets: {...}, getId: () => id } の形式
   let nextSpreadsheetId = 1;
   const scriptProps = {}; // PropertiesServiceが永続的に保存するデータ
+  const cacheStore = new Map(); // CacheServiceが永続的に保存するデータ（TTLは無視し常に保持する簡易モック）
 
   const createMockSpreadsheet = () => ({
     sheets: {},
@@ -86,6 +87,12 @@ beforeEach(() => {
       }),
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+    CacheService: {
+      getScriptCache: () => ({
+        get: (key) => (cacheStore.has(key) ? cacheStore.get(key) : null),
+        put: (key, value) => { cacheStore.set(key, value); },
+      }),
+    },
     ContentService: {
       createTextOutput: (t) => ({ _t: t, setMimeType() { return this; } }),
       MimeType: { JSON: 1 },
@@ -174,6 +181,40 @@ test('save_bookmarks: 存在しない合言葉はCODE_INVALIDエラー', () => {
   const res = post({ action: 'save_bookmarks', code: 'NOTFOUND', bookmarks: [] });
   assert.equal(res.success, false);
   assert.equal(res.code, 'CODE_INVALID');
+});
+
+test('レート制限: 同じ合言葉への短時間の大量アクセスはRATE_LIMITEDエラー', () => {
+  const { code } = post({ action: 'issue_code' });
+  const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
+  for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW; i++) {
+    const res = post({ action: 'get_bookmarks', code });
+    assert.equal(res.success, true, `${i + 1}回目は上限内なので成功するはず`);
+  }
+  const blocked = post({ action: 'get_bookmarks', code });
+  assert.equal(blocked.success, false);
+  assert.equal(blocked.code, 'RATE_LIMITED');
+});
+
+test('レート制限: save_bookmarks(write系)にもかかる', () => {
+  const { code } = post({ action: 'issue_code' });
+  const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
+  for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW; i++) {
+    post({ action: 'save_bookmarks', code, bookmarks: [] });
+  }
+  const blocked = post({ action: 'save_bookmarks', code, bookmarks: [] });
+  assert.equal(blocked.success, false);
+  assert.equal(blocked.code, 'RATE_LIMITED');
+});
+
+test('レート制限: 合言葉ごとに別々にカウントされる（片方が制限されてももう片方は影響しない）', () => {
+  const { code: codeA } = post({ action: 'issue_code' });
+  const { code: codeB } = post({ action: 'issue_code' });
+  const RATE_LIMIT_MAX_PER_WINDOW = vm.runInContext('RATE_LIMIT_MAX_PER_WINDOW', sandbox);
+  for (let i = 0; i < RATE_LIMIT_MAX_PER_WINDOW + 1; i++) {
+    post({ action: 'get_bookmarks', code: codeA });
+  }
+  const resB = post({ action: 'get_bookmarks', code: codeB });
+  assert.equal(resB.success, true);
 });
 
 test('未知のactionはUNKNOWN_ACTIONエラー', () => {

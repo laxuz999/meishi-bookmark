@@ -41,8 +41,13 @@ function handle(p) {
   const route = ROUTES[p.action];
   if (!route) return jsonResponse({ success: false, error: 'unknown action', code: 'UNKNOWN_ACTION' });
   try {
-    if (route.auth === 'code' && !findUserRow(p.code)) {
-      return jsonResponse({ success: false, error: '合言葉が見つかりません', code: 'CODE_INVALID' });
+    if (route.auth === 'code') {
+      if (!checkRateLimit(p.code)) {
+        return jsonResponse({ success: false, error: 'アクセスが集中しています。しばらくしてからお試しください', code: 'RATE_LIMITED' });
+      }
+      if (!findUserRow(p.code)) {
+        return jsonResponse({ success: false, error: '合言葉が見つかりません', code: 'CODE_INVALID' });
+      }
     }
     if (route.write) {
       const lock = LockService.getScriptLock();
@@ -81,6 +86,20 @@ function createNewSpreadsheet(props) {
   const ss = SpreadsheetApp.create('NEXUA名刺ポケット 合言葉データ');
   props.setProperty('SPREADSHEET_ID', ss.getId());
   return ss;
+}
+
+// 合言葉ごとに1分あたりのリクエスト数を制限する。合言葉自体は32^8通り
+// あり総当たりは非現実的だが、それでも大量アクセスに歯止めが無いと
+// スプレッドシートAPI・GASの実行時間クォータを消費されてしまうため
+const RATE_LIMIT_MAX_PER_WINDOW = 30;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+function checkRateLimit(code) {
+  const cache = CacheService.getScriptCache();
+  const key = 'rl_' + code;
+  const count = Number(cache.get(key) || '0') + 1;
+  cache.put(key, String(count), RATE_LIMIT_WINDOW_SECONDS);
+  return count <= RATE_LIMIT_MAX_PER_WINDOW;
 }
 
 // 1-indexedの行番号を返す（ヘッダー行を除く）。見つからなければnull。
