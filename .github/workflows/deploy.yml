@@ -27,8 +27,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # docs/(開発用の設計メモ)とgas-backend/(バックエンドのソース・
+      # .clasp.jsonのscriptId等)は公開する必要が無いため除外する
+      - name: Prepare public files
+        run: |
+          mkdir -p dist
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='docs' \
+            --exclude='gas-backend' \
+            --exclude='dist' \
+            --exclude='node_modules' \
+            ./ dist/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: 'dist'
       - id: deployment
         uses: actions/deploy-pages@v4
