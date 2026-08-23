@@ -61,12 +61,72 @@
     #paper-cards .row > button:hover {
       background: #ffe4e6;
     }
+    #paper-cards .memo-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
+    }
     #paper-cards .memo-text {
       font-size: 0.7rem;
       color: #a3a3a3;
       line-height: 1.4;
       white-space: pre-wrap;
       word-break: break-word;
+      flex: 1;
+      min-width: 0;
+    }
+    #paper-cards .memo-text.placeholder {
+      color: #d4d4d4;
+      font-style: italic;
+    }
+    #paper-cards .memo-edit-btn {
+      font-size: 0.65rem;
+      color: #a3a3a3;
+      background: none;
+      border: none;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+      text-decoration: underline;
+    }
+    #paper-cards .memo-edit-btn:hover {
+      color: #fb7185;
+    }
+    #paper-cards .memo-edit-area {
+      width: 100%;
+    }
+    #paper-cards .memo-edit-area textarea,
+    #paper-cards .memo-edit-area input {
+      width: 100%;
+      font-size: 0.75rem;
+      padding: 0.5rem;
+      border: 1px solid #fecdd3;
+      border-radius: 0.5rem;
+      resize: none;
+      font-family: inherit;
+    }
+    #paper-cards .memo-edit-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+    }
+    #paper-cards .memo-edit-actions button {
+      font-size: 0.65rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      border: none;
+    }
+    #paper-cards .memo-save-btn {
+      background: #fb7185;
+      color: white;
+    }
+    #paper-cards .memo-cancel-btn {
+      background: none;
+      border: 1px solid #e5e5e5 !important;
+      color: #a3a3a3;
     }
     #paper-cards .card-photos-row {
       display: flex;
@@ -323,18 +383,110 @@
           card.appendChild(photosRow);
         }
 
-        if (b.tags && b.tags.length) {
-          const tagsText = document.createElement('p');
-          tagsText.className = 'memo-text';
-          tagsText.textContent = b.tags.join('・');
-          card.appendChild(tagsText);
-        }
-        if (b.memo) {
-          const memoText = document.createElement('p');
-          memoText.className = 'memo-text';
-          memoText.textContent = b.memo;
-          card.appendChild(memoText);
-        }
+        // タグ（後から編集可能）
+        const tagsRow = document.createElement('div');
+        tagsRow.className = 'memo-row';
+        const tagsText = document.createElement('span');
+        tagsText.className = 'memo-text' + (b.tags.length ? '' : ' placeholder');
+        tagsText.textContent = b.tags.length ? b.tags.join('・') : 'タグなし';
+        const tagsEditBtn = document.createElement('button');
+        tagsEditBtn.className = 'memo-edit-btn';
+        tagsEditBtn.textContent = b.tags.length ? '編集' : '+ タグを追加';
+        tagsRow.appendChild(tagsText);
+        tagsRow.appendChild(tagsEditBtn);
+        card.appendChild(tagsRow);
+
+        tagsEditBtn.addEventListener('click', () => {
+          const editArea = document.createElement('div');
+          editArea.className = 'memo-edit-area';
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = '例：DIY,交流会';
+          input.value = b.tags.join(',');
+          const actions = document.createElement('div');
+          actions.className = 'memo-edit-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'memo-save-btn';
+          saveBtn.textContent = '保存';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'memo-cancel-btn';
+          cancelBtn.textContent = 'キャンセル';
+          actions.appendChild(saveBtn);
+          actions.appendChild(cancelBtn);
+          editArea.appendChild(input);
+          editArea.appendChild(actions);
+          card.replaceChild(editArea, tagsRow);
+          input.focus();
+
+          cancelBtn.addEventListener('click', () => {
+            card.replaceChild(tagsRow, editArea);
+          });
+          saveBtn.addEventListener('click', async () => {
+            const newTags = input.value.split(',').map((t) => t.trim()).filter(Boolean);
+            try {
+              const code = getCode();
+              const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
+              const res = await saveBookmarks(code, updated);
+              if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
+              allBookmarks = updated;
+              renderPaperCards();
+            } catch (err) {
+              await appAlert(err.message || 'タグの保存に失敗しました。もう一度お試しください。');
+            }
+          });
+        });
+
+        // ひとことメモ（後から編集可能）
+        const memoRow = document.createElement('div');
+        memoRow.className = 'memo-row';
+        const memoText = document.createElement('span');
+        memoText.className = 'memo-text' + (b.memo ? '' : ' placeholder');
+        memoText.textContent = b.memo || 'メモなし';
+        const memoEditBtn = document.createElement('button');
+        memoEditBtn.className = 'memo-edit-btn';
+        memoEditBtn.textContent = b.memo ? '編集' : '+ メモを追加';
+        memoRow.appendChild(memoText);
+        memoRow.appendChild(memoEditBtn);
+        card.appendChild(memoRow);
+
+        memoEditBtn.addEventListener('click', () => {
+          const editArea = document.createElement('div');
+          editArea.className = 'memo-edit-area';
+          const textarea = document.createElement('textarea');
+          textarea.rows = 2;
+          textarea.value = b.memo || '';
+          const actions = document.createElement('div');
+          actions.className = 'memo-edit-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'memo-save-btn';
+          saveBtn.textContent = '保存';
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'memo-cancel-btn';
+          cancelBtn.textContent = 'キャンセル';
+          actions.appendChild(saveBtn);
+          actions.appendChild(cancelBtn);
+          editArea.appendChild(textarea);
+          editArea.appendChild(actions);
+          card.replaceChild(editArea, memoRow);
+          textarea.focus();
+
+          cancelBtn.addEventListener('click', () => {
+            card.replaceChild(memoRow, editArea);
+          });
+          saveBtn.addEventListener('click', async () => {
+            const newMemo = textarea.value.trim();
+            try {
+              const code = getCode();
+              const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
+              const res = await saveBookmarks(code, updated);
+              if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
+              allBookmarks = updated;
+              renderPaperCards();
+            } catch (err) {
+              await appAlert(err.message || 'メモの保存に失敗しました。もう一度お試しください。');
+            }
+          });
+        });
 
         paperCardsEl.appendChild(card);
       }
