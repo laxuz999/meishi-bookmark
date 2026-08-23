@@ -235,7 +235,7 @@
   <script type="module">
     import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823b';
     import { uploadPhoto } from './src/drive.js?v=20260823b';
-    import { getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
+    import { getBookmarks, saveBookmarks, isPaperCard, describeApiError } from './src/pocketApi.js?v=20260823d';
     import { createAppDialog } from './src/dialog.js?v=20260823c';
     import { renderEditableRow } from './src/inlineEditor.js?v=20260823c';
     import { filterAndSort } from './src/render.js?v=20260823c';
@@ -336,10 +336,10 @@
     // 巻き戻ってしまうため（新規登録の保存処理と同じ考え方）
     async function saveWithRefetch(code, mutate) {
       const remote = await getBookmarks(code);
-      if (!remote.success) throw new Error(remote.error || '最新の一覧の取得に失敗しました');
+      if (!remote.success) throw new Error(describeApiError(remote, '最新の一覧の取得に失敗しました'));
       const updated = mutate(remote.bookmarks);
       const res = await saveBookmarks(code, updated);
-      if (!res.success) throw new Error(res.error || '保存に失敗しました');
+      if (!res.success) throw new Error(describeApiError(res, '保存に失敗しました'));
       return updated;
     }
 
@@ -457,7 +457,7 @@
       paperListStatus.textContent = '読み込み中...';
       try {
         const res = await getBookmarks(code);
-        if (!res.success) throw new Error(res.error || '一覧の取得に失敗しました');
+        if (!res.success) throw new Error(describeApiError(res, '一覧の取得に失敗しました'));
         allBookmarks = res.bookmarks;
         renderPaperCards();
       } catch (err) {
@@ -557,10 +557,10 @@
         };
 
         const remote = await getBookmarks(code);
-        if (!remote.success) throw new Error(remote.error || '一覧の取得に失敗しました');
+        if (!remote.success) throw new Error(describeApiError(remote, '一覧の取得に失敗しました'));
         const updated = [...remote.bookmarks, entry];
         const saveRes = await saveBookmarks(code, updated);
-        if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
+        if (!saveRes.success) throw new Error(describeApiError(saveRes, '保存に失敗しました'));
 
         allBookmarks = updated;
         renderPaperCards();

@@ -266,7 +266,7 @@
     // 「importが存在しない関数を要求してスクリプト全体が起動しない」事故を防ぐため、
     // この日付を今日の日付に更新すること（HTMLのimport URLが変わるので強制的に再取得される）
     import { parseBookmarkParams } from './src/logic.js?v=20260822p';
-    import { issueCode, getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
+    import { issueCode, getBookmarks, saveBookmarks, isPaperCard, describeApiError } from './src/pocketApi.js?v=20260823d';
     import { filterAndSort } from './src/render.js?v=20260822p';
     import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822p';
     import { createAppDialog } from './src/dialog.js?v=20260823c';
@@ -376,7 +376,7 @@
       const syncStartedAt = new Date().toISOString();
       try {
         const remote = await getBookmarks(code);
-        if (!remote.success) throw new Error(remote.error || '合言葉が見つかりません');
+        if (!remote.success) throw new Error(describeApiError(remote, '合言葉が見つかりません'));
 
         const previousCode = getSavedPocketCode();
         if (previousCode !== code) {
@@ -400,7 +400,7 @@
           }
         }
         const saveRes = await saveBookmarks(code, merged);
-        if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
+        if (!saveRes.success) throw new Error(describeApiError(saveRes, '保存に失敗しました'));
 
         localStorage.setItem(POCKET_LAST_SYNCED_KEY, syncStartedAt);
         allBookmarks = merged;
@@ -433,7 +433,9 @@
       if (/\(401\)|\(403\)/.test(err?.message || '')) {
         return 'Googleとの接続が切れているようです。もう一度ボタンをタップしてお試しください。';
       }
-      return `${action}できませんでした。もう一度お試しください。`;
+      // pocketApi側(describeApiError)が既に具体的な原因・対処方法を含んだ
+      // メッセージを作っている場合はそれを活かす。無ければ汎用メッセージ
+      return err?.message || `${action}できませんでした。もう一度お試しください。`;
     }
 
     function renderCards() {
@@ -480,7 +482,7 @@
               const code = getSavedPocketCode();
               const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
               const res = await saveBookmarks(code, updated);
-              if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
+              if (!res.success) throw new Error(describeApiError(res, 'タグの保存に失敗しました'));
               allBookmarks = updated;
             } else {
               updateLocalTags(b.id, newTags);
@@ -506,7 +508,7 @@
               const code = getSavedPocketCode();
               const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
               const res = await saveBookmarks(code, updated);
-              if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
+              if (!res.success) throw new Error(describeApiError(res, 'メモの保存に失敗しました'));
               allBookmarks = updated;
             } else {
               updateLocalMemo(b.id, newMemo);
@@ -529,7 +531,7 @@
               const code = getSavedPocketCode();
               const updated = allBookmarks.filter((x) => x !== b);
               const res = await saveBookmarks(code, updated);
-              if (!res.success) throw new Error(res.error || '削除に失敗しました');
+              if (!res.success) throw new Error(describeApiError(res, '削除に失敗しました'));
               allBookmarks = updated;
               deleteLocalByUrl(b.url);
             } else {
@@ -601,7 +603,7 @@
       backupBtn.textContent = '発行しています...';
       try {
         const res = await issueCode();
-        if (!res.success) throw new Error(res.error || '発行に失敗しました');
+        if (!res.success) throw new Error(describeApiError(res, '発行に失敗しました'));
         // 検証（同期成功）が取れるまではlocalStorageに書き込まない
         pendingIssuedCode = res.code;
         pocketCodeDisplay.textContent = res.code;

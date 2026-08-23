@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { issueCode, getBookmarks, saveBookmarks, isPaperCard } from './pocketApi.js';
+import { issueCode, getBookmarks, saveBookmarks, isPaperCard, describeApiError } from './pocketApi.js';
 
 let calls;
 beforeEach(() => {
@@ -58,4 +58,25 @@ test('isPaperCard: urlがあれば紙の名刺ではない', () => {
 
 test('isPaperCard: 表面写真が無ければ紙の名刺ではない', () => {
   assert.equal(isPaperCard({ url: '', frontPhotoUrl: '' }), false);
+});
+
+test('describeApiError: 対応するエラーコードなら対処方法を追記する', () => {
+  const msg = describeApiError({ success: false, error: '保存できる名刺は500件までです', code: 'TOO_MANY_BOOKMARKS' });
+  assert.match(msg, /保存できる名刺は500件までです/);
+  assert.match(msg, /削除してから/);
+});
+
+test('describeApiError: 対応するエラーコードが無ければres.errorをそのまま返す', () => {
+  const msg = describeApiError({ success: false, error: '合言葉が見つかりません', code: 'INTERNAL' });
+  assert.equal(msg, '合言葉が見つかりません');
+});
+
+test('describeApiError: res.errorが無ければfallbackMessageを使う', () => {
+  const msg = describeApiError({ success: false }, 'タグの保存に失敗しました');
+  assert.equal(msg, 'タグの保存に失敗しました');
+});
+
+test('describeApiError: res.errorもfallbackMessageも無ければ汎用メッセージを返す', () => {
+  const msg = describeApiError({ success: false });
+  assert.equal(msg, '操作に失敗しました。もう一度お試しください。');
 });

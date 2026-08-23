@@ -32,3 +32,19 @@ export function saveBookmarks(code, bookmarks) {
 export function isPaperCard(bookmark) {
   return !bookmark.url && !!bookmark.frontPhotoUrl;
 }
+
+// バックエンドのエラーコードに応じて「次に何をすればいいか」を追記する。
+// res.errorのメッセージ自体は日本語で分かりやすいが、対処方法までは
+// 含まないため、呼び出し元ごとの文脈(fallbackMessage)を保ったまま補足する
+const ERROR_CODE_GUIDANCE = {
+  TOO_MANY_BOOKMARKS: '不要な名刺を削除してから、もう一度お試しください。',
+  PAYLOAD_TOO_LARGE: 'タグやメモを短くするか、不要な名刺を削除してから、もう一度お試しください。',
+  RATE_LIMITED: '少し時間を置いてから、もう一度お試しください。',
+  CODE_INVALID: '合言葉に入力ミスがないか確認してください。',
+};
+
+export function describeApiError(res, fallbackMessage) {
+  const base = res.error || fallbackMessage || '操作に失敗しました。もう一度お試しください。';
+  const guidance = ERROR_CODE_GUIDANCE[res.code];
+  return guidance ? `${base}\n${guidance}` : base;
+}
