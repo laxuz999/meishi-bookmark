@@ -249,6 +249,7 @@
     <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 leading-relaxed text-center">
       <h3 class="font-bold text-base mb-3">🔑 合言葉が発行されました</h3>
       <p id="pocket-code-display" class="text-2xl font-mono font-bold tracking-widest my-4 text-rose-500"></p>
+      <button id="pocket-code-copy-btn" class="w-full mb-3 py-2 rounded-xl border border-rose-200 text-rose-500 font-semibold text-xs hover:bg-rose-50 transition-colors">📋 コピーする</button>
       <p class="text-xs text-neutral-500 mb-4">この合言葉を控えておいてください。他の端末で入力すると、同じ名刺一覧が見られます。忘れると復元できません。</p>
       <button id="pocket-code-shown-ok" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md">ひかえました</button>
     </div>
@@ -312,6 +313,7 @@
     const pocketChoiceCancel = document.getElementById('pocket-choice-cancel');
     const pocketCodeShownModal = document.getElementById('pocket-code-shown-modal');
     const pocketCodeDisplay = document.getElementById('pocket-code-display');
+    const pocketCodeCopyBtn = document.getElementById('pocket-code-copy-btn');
     const pocketCodeShownOk = document.getElementById('pocket-code-shown-ok');
     const pocketCodeInputModal = document.getElementById('pocket-code-input-modal');
     const pocketCodeInput = document.getElementById('pocket-code-input');
@@ -442,7 +444,7 @@
         syncMode = 'pocket';
         backupBtn.disabled = false;
         backupBtn.textContent = '同期済みです';
-        pageTitleEl.textContent = '合言葉で同期中 - NEXUA名刺ポケット';
+        pageTitleEl.textContent = 'S-NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
         renderCards();
       } catch (err) {
@@ -657,7 +659,7 @@
 
       const savedCode = getSavedPocketCode();
       if (savedCode) {
-        pageTitleEl.textContent = '合言葉で同期中 - NEXUA名刺ポケット';
+        pageTitleEl.textContent = 'S-NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
         backupBtn.disabled = true;
         backupBtn.textContent = '同期しています...';
@@ -700,6 +702,17 @@
       } catch (err) {
         await appAlert(err.message || '合言葉の発行に失敗しました。もう一度お試しください。');
         showLocalOnlyUi();
+      }
+    });
+    pocketCodeCopyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(pocketCodeDisplay.textContent);
+        pocketCodeCopyBtn.textContent = '✓ コピーしました';
+        setTimeout(() => {
+          pocketCodeCopyBtn.textContent = '📋 コピーする';
+        }, 2000);
+      } catch (err) {
+        await appAlert('コピーできませんでした。手動で書き写してください。');
       }
     });
     pocketCodeShownOk.addEventListener('click', async () => {
