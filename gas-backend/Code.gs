@@ -102,18 +102,36 @@ function checkRateLimit(code) {
   return count <= RATE_LIMIT_MAX_PER_WINDOW;
 }
 
+// 合言葉→行番号のキャッシュ。全行スキャン(下記)は発行済み合言葉の数に
+// 比例して遅くなるため、一度見つけた行はキャッシュしてスキャンを省略する
+const USER_ROW_CACHE_PREFIX = 'row_';
+const USER_ROW_CACHE_TTL_SECONDS = 21600; // CacheServiceのTTL上限(6時間)
+
 // 1-indexedの行番号を返す（ヘッダー行を除く）。見つからなければnull。
 // 合言葉の照合にはA列だけあれば十分なため、bookmarksJson列を含む全列を
 // 毎回読み込まず、getRangeでA列だけを読む（データが増えるほど重くなる
 // getDataRange().getValues()を避ける）
 function findUserRow(code) {
   if (!code) return null;
+  const cache = CacheService.getScriptCache();
+  const cacheKey = USER_ROW_CACHE_PREFIX + code;
+  const cachedRow = cache.get(cacheKey);
+  if (cachedRow) {
+    const row = Number(cachedRow);
+    // キャッシュされた行が今も本当にその合言葉のものか確認する
+    // （シート側で行の削除・並び替えが起きた場合のズレ対策）
+    if (getSheet().getRange(row, 1).getValue() === code) return row;
+  }
   const sheet = getSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return null; // ヘッダー行のみ、またはヘッダーすら無い
   const codes = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
   for (let i = 0; i < codes.length; i++) {
-    if (codes[i][0] === code) return i + 2;
+    if (codes[i][0] === code) {
+      const row = i + 2;
+      cache.put(cacheKey, String(row), USER_ROW_CACHE_TTL_SECONDS);
+      return row;
+    }
   }
   return null;
 }
@@ -139,6 +157,9 @@ function issueCode() {
     code = generateCode();
   } while (findUserRow(code));
   sheet.appendRow([code, new Date().toISOString(), '', '[]']);
+  // 発行直後のget_bookmarks/save_bookmarksから全行スキャンせずに済むよう、
+  // 行番号を先回りしてキャッシュしておく
+  CacheService.getScriptCache().put(USER_ROW_CACHE_PREFIX + code, String(sheet.getLastRow()), USER_ROW_CACHE_TTL_SECONDS);
   return { success: true, code };
 }
 

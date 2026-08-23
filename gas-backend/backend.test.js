@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // GASのSpreadsheetオブジェクトの最小モック（NEXUA本体 tests/gas_mock_test.cjs と同じ方針）
 class MockSheet {
-  constructor() { this.rows = []; }
+  constructor() { this.rows = []; this.rangeScanCount = 0; } // rangeScanCount: 複数行のgetRange(全行スキャン)が呼ばれた回数
   getDataRange() { return { getValues: () => this.rows.map((r) => [...r]) }; }
   appendRow(r) { this.rows.push([...r]); }
   getLastRow() { return this.rows.length; }
@@ -18,6 +18,7 @@ class MockSheet {
   getRange(r, c, numRows, numCols) {
     const self = this;
     if (numRows !== undefined) {
+      self.rangeScanCount++;
       return {
         getValues: () => {
           const result = [];
@@ -217,6 +218,27 @@ test('save_bookmarks: 存在しない合言葉はCODE_INVALIDエラー', () => {
   const res = post({ action: 'save_bookmarks', code: 'NOTFOUND', bookmarks: [] });
   assert.equal(res.success, false);
   assert.equal(res.code, 'CODE_INVALID');
+});
+
+test('findUserRow: 初回はシート全行をスキャンし、2回目以降はキャッシュヒットしてスキャンしない', () => {
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  sheet.appendRow(['MANUALCODE', new Date().toISOString(), '', '[]']);
+  const findUserRow = vm.runInContext('findUserRow', sandbox);
+  const scanBefore = sheet.rangeScanCount;
+  const row1 = findUserRow('MANUALCODE');
+  assert.equal(sheet.rangeScanCount, scanBefore + 1, '初回はキャッシュが無いのでスキャンするはず');
+  const row2 = findUserRow('MANUALCODE');
+  assert.equal(row2, row1);
+  assert.equal(sheet.rangeScanCount, scanBefore + 1, '2回目はキャッシュヒットしてスキャンしないはず');
+});
+
+test('findUserRow: issue_code直後はキャッシュ済みのため、get_bookmarksで全行スキャンが発生しない', () => {
+  const { code } = post({ action: 'issue_code' });
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  const scanBefore = sheet.rangeScanCount;
+  const res = post({ action: 'get_bookmarks', code });
+  assert.equal(res.success, true);
+  assert.equal(sheet.rangeScanCount, scanBefore, 'issue_code時点でキャッシュ済みのためスキャンなしでヒットするはず');
 });
 
 test('レート制限: 同じ合言葉への短時間の大量アクセスはRATE_LIMITEDエラー', () => {
