@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>紙の名刺 - NEXUA名刺ポケット</title>
+  <title>S-NEXUA 撮影名刺</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -148,12 +148,12 @@
 </head>
 <body class="min-h-screen text-neutral-800">
   <div class="max-w-md mx-auto px-6 py-12">
-    <h1 class="text-lg font-bold text-center text-neutral-800 mb-1 tracking-tight">📇 紙の名刺</h1>
+    <h1 class="text-lg font-bold text-center text-neutral-800 mb-1 tracking-tight">📇 S-NEXUA 撮影名刺</h1>
     <p class="text-center mb-6"><a href="./" class="text-[11px] text-neutral-400 hover:text-rose-500 underline underline-offset-2">一覧にもどる</a></p>
 
     <!-- 合言葉が未設定の場合の案内 -->
     <div id="no-code-notice" style="display:none" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-4 text-sm leading-relaxed text-center">
-      紙の名刺の管理には、まず一覧画面で合言葉を発行・入力してください。<br><br>
+      S-NEXUA 撮影名刺の管理には、まず一覧画面で合言葉を発行・入力してください。<br><br>
       <a href="./" class="inline-block px-6 py-2.5 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">一覧画面へ</a>
     </div>
 
@@ -174,7 +174,7 @@
     <!-- 紙の名刺を撮影して登録するモーダル -->
     <div id="paper-card-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 overflow-y-auto">
       <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 my-8">
-        <h3 class="font-bold text-base mb-4">📇 紙の名刺を登録</h3>
+        <h3 class="font-bold text-base mb-4">📇 S-NEXUA 撮影名刺を登録</h3>
 
         <!-- Google連携の案内（写真の保存先はあなた自身のGoogle Drive） -->
         <div id="google-link-notice">
@@ -348,8 +348,8 @@
       const list = filterAndSort(paperCardsAll, paperSearchEl.value, paperSortEl.value);
       paperListStatus.style.display = list.length ? 'none' : 'block';
       paperListStatus.textContent = paperCardsAll.length
-        ? '検索条件に一致する紙の名刺がありません。'
-        : 'まだ紙の名刺は登録されていません。';
+        ? '検索条件に一致するS-NEXUA 撮影名刺がありません。'
+        : 'まだS-NEXUA 撮影名刺は登録されていません。';
       paperCardsEl.innerHTML = '';
       for (const b of list) {
         const card = document.createElement('div');
@@ -568,7 +568,7 @@
       } catch (err) {
         paperCardSaveBtn.disabled = false;
         paperCardSaveBtn.textContent = '登録する';
-        await appAlert(err.message || '紙の名刺の登録に失敗しました。もう一度お試しください。');
+        await appAlert(err.message || 'S-NEXUA 撮影名刺の登録に失敗しました。もう一度お試しください。');
       }
     });
 
