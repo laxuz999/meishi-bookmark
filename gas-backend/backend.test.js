@@ -362,6 +362,63 @@ test('stripeApiGet: 未登録のイベントIDなら例外を投げる', () => {
   assert.throws(() => stripeApiGet('events/evt_unknown'), /Stripe API error/);
 });
 
+test('issueCode: メールアドレスを渡すとC列(stripeCustomerEmail)に保存される', () => {
+  const issueCode = vm.runInContext('issueCode', sandbox);
+  const res = issueCode('buyer@example.com');
+  assert.equal(res.success, true);
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  const row = sheet.rows.find((r) => r[0] === res.code);
+  assert.equal(row[2], 'buyer@example.com');
+});
+
+test('issueCode: メールアドレス省略時はC列が空文字列', () => {
+  const issueCode = vm.runInContext('issueCode', sandbox);
+  const res = issueCode();
+  assert.equal(res.success, true);
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  const row = sheet.rows.find((r) => r[0] === res.code);
+  assert.equal(row[2], '');
+});
+
+test('claim_code: session_id未指定はBAD_REQUESTエラー', () => {
+  const res = post({ action: 'claim_code' });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'BAD_REQUEST');
+});
+
+test('claim_code: キャッシュに無いsession_idはPENDINGを返す', () => {
+  const res = post({ action: 'claim_code', session_id: 'cs_test_unknown' });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'PENDING');
+});
+
+test('claim_code: CacheServiceに合言葉が置かれていれば取得できる', () => {
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  cache.put('claim_cs_test_123', 'ABCDEFGH', 3600);
+  const res = post({ action: 'claim_code', session_id: 'cs_test_123' });
+  assert.equal(res.success, true);
+  assert.equal(res.code, 'ABCDEFGH');
+});
+
+test('claim_code: 1分あたりの上限を超えるとRATE_LIMITEDエラー', () => {
+  const MAX = vm.runInContext('CLAIM_RATE_LIMIT_MAX_PER_WINDOW', sandbox);
+  for (let i = 0; i < MAX; i++) {
+    const res = post({ action: 'claim_code', session_id: 'cs_test_rl' });
+    assert.equal(res.code, 'PENDING', `${i + 1}回目は上限内なのでPENDINGのはず`);
+  }
+  const blocked = post({ action: 'claim_code', session_id: 'cs_test_rl' });
+  assert.equal(blocked.success, false);
+  assert.equal(blocked.code, 'RATE_LIMITED');
+});
+
+test('doGET: claim_code（read系）はPOSTと同じく動作可能', () => {
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  cache.put('claim_cs_test_get', 'ZZYYXXWW', 3600);
+  const res = get({ action: 'claim_code', session_id: 'cs_test_get' });
+  assert.equal(res.success, true);
+  assert.equal(res.code, 'ZZYYXXWW');
+});
+
 // テストから「Stripeに実在するイベント」を登録するヘルパー。
 // stripeApiGet('events/'+id)のモック応答に使われる
 function registerStripeEvent(event) {

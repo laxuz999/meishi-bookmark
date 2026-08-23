@@ -32,7 +32,7 @@ function doPost(e) {
 // ルーティングテーブル。auth: "none"=誰でも呼べる / "code"=合言葉が実在すること。
 // write: true の場合はLockServiceで直列化する（NEXUA本体gas_backend.jsと同じ設計）
 const ROUTES = {
-  issue_code: { auth: 'none', write: true, handler: () => issueCode() },
+  claim_code: { auth: 'none', write: false, handler: (p) => claimCode(p.session_id) },
   get_bookmarks: { auth: 'code', write: false, handler: (p) => getBookmarks(p.code) },
   save_bookmarks: { auth: 'code', write: true, handler: (p) => saveBookmarks(p.code, p.bookmarks) },
 };
@@ -159,13 +159,13 @@ function generateCode() {
   return code;
 }
 
-function issueCode() {
+function issueCode(stripeCustomerEmail) {
   const sheet = getSheet();
   let code;
   do {
     code = generateCode();
   } while (findUserRow(code));
-  sheet.appendRow([code, new Date().toISOString(), '', '[]']);
+  sheet.appendRow([code, new Date().toISOString(), stripeCustomerEmail || '', '[]']);
   // 発行直後のget_bookmarks/save_bookmarksから全行スキャンせずに済むよう、
   // 行番号を先回りしてキャッシュしておく
   CacheService.getScriptCache().put(USER_ROW_CACHE_PREFIX + code, String(sheet.getLastRow()), USER_ROW_CACHE_TTL_SECONDS);
@@ -234,4 +234,34 @@ function stripeApiGet(path) {
     throw new Error('Stripe API error: ' + ((body.error && body.error.message) || res.getContentText()));
   }
   return body;
+}
+
+// 決済完了WebhookがCacheServiceに一時保存した合言葉を、Stripe CheckoutのセッションID
+// をキーに取り出す。フロント(payment-complete.html)がポーリングで呼ぶ想定
+const CLAIM_CODE_CACHE_PREFIX = 'claim_';
+const CLAIM_CODE_CACHE_TTL_SECONDS = 3600; // 1時間
+
+// claim_codeはauth:'none'（session_id自体が秘密情報の代わり）のため、
+// 通常のcheckRateLimit(合言葉ごと)とは別に、ポーリング用の緩やかな制限を設ける
+const CLAIM_RATE_LIMIT_MAX_PER_WINDOW = 60;
+const CLAIM_RATE_LIMIT_WINDOW_SECONDS = 60;
+
+function checkClaimRateLimit(sessionId) {
+  const cache = CacheService.getScriptCache();
+  const key = 'claim_rl_' + sessionId;
+  const count = Number(cache.get(key) || '0') + 1;
+  cache.put(key, String(count), CLAIM_RATE_LIMIT_WINDOW_SECONDS);
+  return count <= CLAIM_RATE_LIMIT_MAX_PER_WINDOW;
+}
+
+function claimCode(sessionId) {
+  if (!sessionId) return { success: false, error: 'session_idが必要です', code: 'BAD_REQUEST' };
+  if (!checkClaimRateLimit(sessionId)) {
+    return { success: false, error: 'アクセスが集中しています。しばらくしてからお試しください', code: 'RATE_LIMITED' };
+  }
+  const code = CacheService.getScriptCache().get(CLAIM_CODE_CACHE_PREFIX + sessionId);
+  if (!code) {
+    return { success: false, error: '決済の確認中です。少し待ってからもう一度お試しください', code: 'PENDING' };
+  }
+  return { success: true, code };
 }
