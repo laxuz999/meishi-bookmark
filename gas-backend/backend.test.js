@@ -45,12 +45,15 @@ class MockSheet {
 }
 
 let sandbox;
+let mockStripeEvents; // eventId -> event object（テストから登録する「Stripeに実在するイベント」）
 
 beforeEach(() => {
+  mockStripeEvents = {};
   const sheets = {};
   const spreadsheets = {}; // ID -> { sheets: {...}, getId: () => id } の形式
   let nextSpreadsheetId = 1;
   const scriptProps = {}; // PropertiesServiceが永続的に保存するデータ
+  scriptProps['STRIPE_API_KEY'] = 'sk_test_dummy';
   const cacheStore = new Map(); // CacheServiceが永続的に保存するデータ（TTLは無視し常に保持する簡易モック）
 
   const createMockSpreadsheet = () => ({
@@ -94,6 +97,19 @@ beforeEach(() => {
         put: (key, value) => { cacheStore.set(key, value); },
         remove: (key) => { cacheStore.delete(key); },
       }),
+    },
+    UrlFetchApp: {
+      fetch: (url) => {
+        const eventId = url.split('/').pop();
+        const event = mockStripeEvents[eventId];
+        return {
+          getResponseCode: () => (event ? 200 : 404),
+          getContentText: () => JSON.stringify(event || { error: { message: 'not found' } }),
+        };
+      },
+    },
+    HtmlService: {
+      createHtmlOutput: (t) => ({ _t: t, _isHtml: true }),
     },
     ContentService: {
       createTextOutput: (t) => ({ _t: t, setMimeType() { return this; } }),
@@ -332,3 +348,22 @@ test('doGET: get_bookmarks（read系）はPOSTと同じく動作可能', () => {
   assert.equal(res.bookmarks.length, 1);
   assert.equal(res.bookmarks[0].name, 'テスト');
 });
+
+test('stripeApiGet: 登録済みイベントIDなら200でイベント本体を返す', () => {
+  registerStripeEvent({ id: 'evt_test1', type: 'checkout.session.completed' });
+  const stripeApiGet = vm.runInContext('stripeApiGet', sandbox);
+  const event = stripeApiGet('events/evt_test1');
+  assert.equal(event.id, 'evt_test1');
+  assert.equal(event.type, 'checkout.session.completed');
+});
+
+test('stripeApiGet: 未登録のイベントIDなら例外を投げる', () => {
+  const stripeApiGet = vm.runInContext('stripeApiGet', sandbox);
+  assert.throws(() => stripeApiGet('events/evt_unknown'), /Stripe API error/);
+});
+
+// テストから「Stripeに実在するイベント」を登録するヘルパー。
+// stripeApiGet('events/'+id)のモック応答に使われる
+function registerStripeEvent(event) {
+  mockStripeEvents[event.id] = event;
+}

@@ -210,3 +210,28 @@ function saveBookmarks(code, bookmarks) {
   getSheet().getRange(row, 4).setValue(json);
   return { success: true };
 }
+
+// ── Stripe連携 ─────────────────────────────────────────────
+// NEXUA本体(gas_backend.js)と同じ設計: Stripeの署名ヘッダーはGASのdoPostでは
+// 読めないため、受信イベントIDをStripe APIに問い合わせて実在確認する方式で
+// 真正性を担保する（受信ペイロードそのものは信用しない）
+const STRIPE_PRICE_JPY = 300; // 買い切り価格（税込・円）
+
+function getStripeApiKey() {
+  return PropertiesService.getScriptProperties().getProperty('STRIPE_API_KEY') || '';
+}
+
+function stripeApiGet(path) {
+  const key = getStripeApiKey();
+  if (!key) throw new Error('STRIPE_API_KEY未設定（スクリプトプロパティを確認してください）');
+  const res = UrlFetchApp.fetch('https://api.stripe.com/v1/' + path, {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + key },
+    muteHttpExceptions: true,
+  });
+  const body = JSON.parse(res.getContentText());
+  if (res.getResponseCode() >= 300) {
+    throw new Error('Stripe API error: ' + ((body.error && body.error.message) || res.getContentText()));
+  }
+  return body;
+}
