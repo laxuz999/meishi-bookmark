@@ -14,8 +14,8 @@ async function callApi(payload) {
   return res.json();
 }
 
-export function issueCode() {
-  return callApi({ action: 'issue_code' });
+export function claimCode(sessionId) {
+  return callApi({ action: 'claim_code', session_id: sessionId });
 }
 
 export function getBookmarks(code) {
