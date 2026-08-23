@@ -223,6 +223,8 @@
     import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823b';
     import { uploadPhoto } from './src/drive.js?v=20260823b';
     import { getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
+    import { createAppDialog } from './src/dialog.js?v=20260823c';
+    import { renderEditableRow } from './src/inlineEditor.js?v=20260823c';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const POCKET_CODE_KEY = 'meishi_pocket_code';
@@ -248,41 +250,7 @@
     const paperCardBackPreview = document.getElementById('paper-card-back-preview');
     const paperCardCancelBtn = document.getElementById('paper-card-cancel');
     const paperCardSaveBtn = document.getElementById('paper-card-save');
-    const dialogModalEl = document.getElementById('app-dialog-modal');
-    const dialogMessageEl = document.getElementById('app-dialog-message');
-    const dialogCancelBtn = document.getElementById('app-dialog-cancel');
-    const dialogOkBtn = document.getElementById('app-dialog-ok');
-
-    function appAlert(message) {
-      return new Promise((resolve) => {
-        dialogMessageEl.textContent = message;
-        dialogCancelBtn.style.display = 'none';
-        dialogModalEl.style.display = 'flex';
-        const onOk = () => {
-          dialogModalEl.style.display = 'none';
-          dialogOkBtn.removeEventListener('click', onOk);
-          resolve();
-        };
-        dialogOkBtn.addEventListener('click', onOk);
-      });
-    }
-
-    function appConfirm(message) {
-      return new Promise((resolve) => {
-        dialogMessageEl.textContent = message;
-        dialogCancelBtn.style.display = 'block';
-        dialogModalEl.style.display = 'flex';
-        const cleanup = () => {
-          dialogModalEl.style.display = 'none';
-          dialogOkBtn.removeEventListener('click', onOk);
-          dialogCancelBtn.removeEventListener('click', onCancel);
-        };
-        const onOk = () => { cleanup(); resolve(true); };
-        const onCancel = () => { cleanup(); resolve(false); };
-        dialogOkBtn.addEventListener('click', onOk);
-        dialogCancelBtn.addEventListener('click', onCancel);
-      });
-    }
+    const { appAlert, appConfirm } = createAppDialog();
 
     function resizeImageFile(file, maxDim = 1600, quality = 0.8) {
       return new Promise((resolve, reject) => {
@@ -396,108 +364,46 @@
         }
 
         // タグ（後から編集可能）
-        const tagsRow = document.createElement('div');
-        tagsRow.className = 'memo-row';
-        const tagsText = document.createElement('span');
-        tagsText.className = 'memo-text' + (b.tags.length ? '' : ' placeholder');
-        tagsText.textContent = b.tags.length ? b.tags.join('・') : 'タグなし';
-        const tagsEditBtn = document.createElement('button');
-        tagsEditBtn.className = 'memo-edit-btn';
-        tagsEditBtn.textContent = b.tags.length ? '編集' : '+ タグを追加';
-        tagsRow.appendChild(tagsText);
-        tagsRow.appendChild(tagsEditBtn);
-        card.appendChild(tagsRow);
-
-        tagsEditBtn.addEventListener('click', () => {
-          const editArea = document.createElement('div');
-          editArea.className = 'memo-edit-area';
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.placeholder = '例：DIY,交流会';
-          input.value = b.tags.join(',');
-          const actions = document.createElement('div');
-          actions.className = 'memo-edit-actions';
-          const saveBtn = document.createElement('button');
-          saveBtn.className = 'memo-save-btn';
-          saveBtn.textContent = '保存';
-          const cancelBtn = document.createElement('button');
-          cancelBtn.className = 'memo-cancel-btn';
-          cancelBtn.textContent = 'キャンセル';
-          actions.appendChild(saveBtn);
-          actions.appendChild(cancelBtn);
-          editArea.appendChild(input);
-          editArea.appendChild(actions);
-          card.replaceChild(editArea, tagsRow);
-          input.focus();
-
-          cancelBtn.addEventListener('click', () => {
-            card.replaceChild(tagsRow, editArea);
-          });
-          saveBtn.addEventListener('click', async () => {
-            const newTags = input.value.split(',').map((t) => t.trim()).filter(Boolean);
-            try {
-              const code = getCode();
-              const updated = await saveWithRefetch(code, (list) =>
-                list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, tags: newTags } : x))
-              );
-              allBookmarks = updated;
-              renderPaperCards();
-            } catch (err) {
-              await appAlert(err.message || 'タグの保存に失敗しました。もう一度お試しください。');
-            }
-          });
+        renderEditableRow(card, {
+          displayText: b.tags.length ? b.tags.join('・') : 'タグなし',
+          isEmpty: !b.tags.length,
+          editLabel: b.tags.length ? '編集' : '+ タグを追加',
+          isTextarea: false,
+          inputValue: b.tags.join(','),
+          inputPlaceholder: '例：DIY,交流会',
+          onSave: async (raw) => {
+            const newTags = raw.split(',').map((t) => t.trim()).filter(Boolean);
+            const code = getCode();
+            const updated = await saveWithRefetch(code, (list) =>
+              list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, tags: newTags } : x))
+            );
+            allBookmarks = updated;
+            renderPaperCards();
+          },
+          onSaveError: async (err) => {
+            await appAlert(err.message || 'タグの保存に失敗しました。もう一度お試しください。');
+          },
         });
 
         // ひとことメモ（後から編集可能）
-        const memoRow = document.createElement('div');
-        memoRow.className = 'memo-row';
-        const memoText = document.createElement('span');
-        memoText.className = 'memo-text' + (b.memo ? '' : ' placeholder');
-        memoText.textContent = b.memo || 'メモなし';
-        const memoEditBtn = document.createElement('button');
-        memoEditBtn.className = 'memo-edit-btn';
-        memoEditBtn.textContent = b.memo ? '編集' : '+ メモを追加';
-        memoRow.appendChild(memoText);
-        memoRow.appendChild(memoEditBtn);
-        card.appendChild(memoRow);
-
-        memoEditBtn.addEventListener('click', () => {
-          const editArea = document.createElement('div');
-          editArea.className = 'memo-edit-area';
-          const textarea = document.createElement('textarea');
-          textarea.rows = 2;
-          textarea.value = b.memo || '';
-          const actions = document.createElement('div');
-          actions.className = 'memo-edit-actions';
-          const saveBtn = document.createElement('button');
-          saveBtn.className = 'memo-save-btn';
-          saveBtn.textContent = '保存';
-          const cancelBtn = document.createElement('button');
-          cancelBtn.className = 'memo-cancel-btn';
-          cancelBtn.textContent = 'キャンセル';
-          actions.appendChild(saveBtn);
-          actions.appendChild(cancelBtn);
-          editArea.appendChild(textarea);
-          editArea.appendChild(actions);
-          card.replaceChild(editArea, memoRow);
-          textarea.focus();
-
-          cancelBtn.addEventListener('click', () => {
-            card.replaceChild(memoRow, editArea);
-          });
-          saveBtn.addEventListener('click', async () => {
-            const newMemo = textarea.value.trim();
-            try {
-              const code = getCode();
-              const updated = await saveWithRefetch(code, (list) =>
-                list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, memo: newMemo } : x))
-              );
-              allBookmarks = updated;
-              renderPaperCards();
-            } catch (err) {
-              await appAlert(err.message || 'メモの保存に失敗しました。もう一度お試しください。');
-            }
-          });
+        renderEditableRow(card, {
+          displayText: b.memo || 'メモなし',
+          isEmpty: !b.memo,
+          editLabel: b.memo ? '編集' : '+ メモを追加',
+          isTextarea: true,
+          inputValue: b.memo || '',
+          onSave: async (raw) => {
+            const newMemo = raw.trim();
+            const code = getCode();
+            const updated = await saveWithRefetch(code, (list) =>
+              list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, memo: newMemo } : x))
+            );
+            allBookmarks = updated;
+            renderPaperCards();
+          },
+          onSaveError: async (err) => {
+            await appAlert(err.message || 'メモの保存に失敗しました。もう一度お試しください。');
+          },
         });
 
         paperCardsEl.appendChild(card);

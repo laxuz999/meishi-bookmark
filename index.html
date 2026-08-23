@@ -268,6 +268,8 @@
     import { issueCode, getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
     import { filterAndSort } from './src/render.js?v=20260822p';
     import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822p';
+    import { createAppDialog } from './src/dialog.js?v=20260823c';
+    import { renderEditableRow } from './src/inlineEditor.js?v=20260823c';
 
     const POCKET_CODE_KEY = 'meishi_pocket_code';
     // 直前に成功した合言葉同期の時刻(ISO文字列)。差分マージ時、この時刻より後に
@@ -310,43 +312,7 @@
     const cardsEl = document.getElementById('cards');
     const searchEl = document.getElementById('search');
     const sortEl = document.getElementById('sort');
-    const dialogModalEl = document.getElementById('app-dialog-modal');
-    const dialogMessageEl = document.getElementById('app-dialog-message');
-    const dialogCancelBtn = document.getElementById('app-dialog-cancel');
-    const dialogOkBtn = document.getElementById('app-dialog-ok');
-
-    // ブラウザ標準alert()の代替（URLが出ないよう自前モーダルで表示）
-    function appAlert(message) {
-      return new Promise((resolve) => {
-        dialogMessageEl.textContent = message;
-        dialogCancelBtn.style.display = 'none';
-        dialogModalEl.style.display = 'flex';
-        const onOk = () => {
-          dialogModalEl.style.display = 'none';
-          dialogOkBtn.removeEventListener('click', onOk);
-          resolve();
-        };
-        dialogOkBtn.addEventListener('click', onOk);
-      });
-    }
-
-    // ブラウザ標準confirm()の代替（URLが出ないよう自前モーダルで表示）
-    function appConfirm(message) {
-      return new Promise((resolve) => {
-        dialogMessageEl.textContent = message;
-        dialogCancelBtn.style.display = 'block';
-        dialogModalEl.style.display = 'flex';
-        const cleanup = () => {
-          dialogModalEl.style.display = 'none';
-          dialogOkBtn.removeEventListener('click', onOk);
-          dialogCancelBtn.removeEventListener('click', onCancel);
-        };
-        const onOk = () => { cleanup(); resolve(true); };
-        const onCancel = () => { cleanup(); resolve(false); };
-        dialogOkBtn.addEventListener('click', onOk);
-        dialogCancelBtn.addEventListener('click', onCancel);
-      });
-    }
+    const { appAlert, appConfirm } = createAppDialog();
 
     let allBookmarks = [];
     // 一覧の表示元。'local' = このブラウザのlocalStorage、'pocket' = 合言葉で同期中
@@ -499,118 +465,56 @@
         row.appendChild(dateSpan);
 
         // タグ（後から編集可能。ローカル・Google同期どちらのモードでも対応）
-        const tagsRow = document.createElement('div');
-        tagsRow.className = 'memo-row';
-        const tagsText = document.createElement('span');
-        tagsText.className = 'memo-text' + (b.tags.length ? '' : ' placeholder');
-        tagsText.textContent = b.tags.length ? b.tags.join('・') : 'タグなし';
-        const tagsEditBtn = document.createElement('button');
-        tagsEditBtn.className = 'memo-edit-btn';
-        tagsEditBtn.textContent = b.tags.length ? '編集' : '+ タグを追加';
-        tagsRow.appendChild(tagsText);
-        tagsRow.appendChild(tagsEditBtn);
-        card.appendChild(tagsRow);
-
-        tagsEditBtn.addEventListener('click', () => {
-          const editArea = document.createElement('div');
-          editArea.className = 'memo-edit-area';
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.placeholder = '例：DIY,交流会';
-          input.value = b.tags.join(',');
-          const actions = document.createElement('div');
-          actions.className = 'memo-edit-actions';
-          const saveBtn = document.createElement('button');
-          saveBtn.className = 'memo-save-btn';
-          saveBtn.textContent = '保存';
-          const cancelBtn = document.createElement('button');
-          cancelBtn.className = 'memo-cancel-btn';
-          cancelBtn.textContent = 'キャンセル';
-          actions.appendChild(saveBtn);
-          actions.appendChild(cancelBtn);
-          editArea.appendChild(input);
-          editArea.appendChild(actions);
-          card.replaceChild(editArea, tagsRow);
-          input.focus();
-
-          cancelBtn.addEventListener('click', () => {
-            card.replaceChild(tagsRow, editArea);
-          });
-          saveBtn.addEventListener('click', async () => {
-            const newTags = input.value.split(',').map(t => t.trim()).filter(Boolean);
-            try {
-              if (syncMode === 'pocket') {
-                const code = getSavedPocketCode();
-                const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
-                const res = await saveBookmarks(code, updated);
-                if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
-                allBookmarks = updated;
-              } else {
-                updateLocalTags(b.id, newTags);
-                allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, tags: newTags } : x);
-              }
-              renderCards();
-            } catch (err) {
-              await appAlert(describeGoogleSyncError(err, 'タグを保存'));
+        renderEditableRow(card, {
+          displayText: b.tags.length ? b.tags.join('・') : 'タグなし',
+          isEmpty: !b.tags.length,
+          editLabel: b.tags.length ? '編集' : '+ タグを追加',
+          isTextarea: false,
+          inputValue: b.tags.join(','),
+          inputPlaceholder: '例：DIY,交流会',
+          onSave: async (raw) => {
+            const newTags = raw.split(',').map(t => t.trim()).filter(Boolean);
+            if (syncMode === 'pocket') {
+              const code = getSavedPocketCode();
+              const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
+              const res = await saveBookmarks(code, updated);
+              if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
+              allBookmarks = updated;
+            } else {
+              updateLocalTags(b.id, newTags);
+              allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, tags: newTags } : x);
             }
-          });
+            renderCards();
+          },
+          onSaveError: async (err) => {
+            await appAlert(describeGoogleSyncError(err, 'タグを保存'));
+          },
         });
 
         // ひとことメモ（後から編集可能）
-        const memoRow = document.createElement('div');
-        memoRow.className = 'memo-row';
-        const memoText = document.createElement('span');
-        memoText.className = 'memo-text' + (b.memo ? '' : ' placeholder');
-        memoText.textContent = b.memo || 'メモなし';
-        const memoEditBtn = document.createElement('button');
-        memoEditBtn.className = 'memo-edit-btn';
-        memoEditBtn.textContent = b.memo ? '編集' : '+ メモを追加';
-        memoRow.appendChild(memoText);
-        memoRow.appendChild(memoEditBtn);
-        card.appendChild(memoRow);
-
-        memoEditBtn.addEventListener('click', () => {
-          const editArea = document.createElement('div');
-          editArea.className = 'memo-edit-area';
-          const textarea = document.createElement('textarea');
-          textarea.rows = 2;
-          textarea.value = b.memo || '';
-          const actions = document.createElement('div');
-          actions.className = 'memo-edit-actions';
-          const saveBtn = document.createElement('button');
-          saveBtn.className = 'memo-save-btn';
-          saveBtn.textContent = '保存';
-          const cancelBtn = document.createElement('button');
-          cancelBtn.className = 'memo-cancel-btn';
-          cancelBtn.textContent = 'キャンセル';
-          actions.appendChild(saveBtn);
-          actions.appendChild(cancelBtn);
-          editArea.appendChild(textarea);
-          editArea.appendChild(actions);
-          card.replaceChild(editArea, memoRow);
-          textarea.focus();
-
-          cancelBtn.addEventListener('click', () => {
-            card.replaceChild(memoRow, editArea);
-          });
-          saveBtn.addEventListener('click', async () => {
-            const newMemo = textarea.value.trim();
-            try {
-              if (syncMode === 'pocket') {
-                const code = getSavedPocketCode();
-                const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
-                const res = await saveBookmarks(code, updated);
-                if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
-                allBookmarks = updated;
-              } else {
-                updateLocalMemo(b.id, newMemo);
-                allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, memo: newMemo } : x);
-              }
-              renderCards();
-            } catch (err) {
-              await appAlert(describeGoogleSyncError(err, 'メモを保存'));
+        renderEditableRow(card, {
+          displayText: b.memo || 'メモなし',
+          isEmpty: !b.memo,
+          editLabel: b.memo ? '編集' : '+ メモを追加',
+          isTextarea: true,
+          inputValue: b.memo || '',
+          onSave: async (raw) => {
+            const newMemo = raw.trim();
+            if (syncMode === 'pocket') {
+              const code = getSavedPocketCode();
+              const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
+              const res = await saveBookmarks(code, updated);
+              if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
+              allBookmarks = updated;
+            } else {
+              updateLocalMemo(b.id, newMemo);
+              allBookmarks = allBookmarks.map(x => x.id === b.id ? { ...x, memo: newMemo } : x);
             }
-          });
+            renderCards();
+          },
+          onSaveError: async (err) => {
+            await appAlert(describeGoogleSyncError(err, 'メモを保存'));
+          },
         });
 
         const button = document.createElement('button');
