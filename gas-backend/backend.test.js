@@ -220,25 +220,6 @@ test('save_bookmarks: 存在しない合言葉はCODE_INVALIDエラー', () => {
   assert.equal(res.code, 'CODE_INVALID');
 });
 
-test('総当たり対策: 存在しない合言葉を連投するとグローバルにRATE_LIMITEDになる', () => {
-  const MAX = vm.runInContext('GLOBAL_INVALID_CODE_MAX_PER_WINDOW', sandbox);
-  for (let i = 0; i < MAX; i++) {
-    const res = post({ action: 'get_bookmarks', code: `WRONG${i}` });
-    assert.equal(res.code, 'CODE_INVALID', `${i + 1}回目はCODE_INVALIDのはず`);
-  }
-  const blocked = post({ action: 'get_bookmarks', code: 'WRONGLAST' });
-  assert.equal(blocked.success, false);
-  assert.equal(blocked.code, 'RATE_LIMITED');
-});
-
-test('総当たり対策: 正規の合言葉への通常アクセスはこのグローバルカウンタを消費しない', () => {
-  const { code } = post({ action: 'issue_code' });
-  for (let i = 0; i < 10; i++) {
-    const res = post({ action: 'get_bookmarks', code });
-    assert.equal(res.success, true);
-  }
-});
-
 test('findUserRow: 初回はシート全行をスキャンし、2回目以降はキャッシュヒットしてスキャンしない', () => {
   const sheet = vm.runInContext('getSheet()', sandbox);
   sheet.appendRow(['MANUALCODE', new Date().toISOString(), '', '[]']);

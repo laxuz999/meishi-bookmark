@@ -42,17 +42,10 @@ function handle(p) {
   if (!route) return jsonResponse({ success: false, error: 'unknown action', code: 'UNKNOWN_ACTION' });
   try {
     if (route.auth === 'code') {
-      // checkRateLimit(合言葉ごと)は総当たり攻撃には無力（攻撃者は毎回違う
-      // 合言葉を試すのでキーが変わり引っかからない）。合言葉に依存しない
-      // グローバルな失敗回数で総当たりを検知する
-      if (!checkGlobalInvalidCodeLimit()) {
-        return jsonResponse({ success: false, error: 'アクセスが集中しています。しばらくしてからお試しください', code: 'RATE_LIMITED' });
-      }
       if (!checkRateLimit(p.code)) {
         return jsonResponse({ success: false, error: 'アクセスが集中しています。しばらくしてからお試しください', code: 'RATE_LIMITED' });
       }
       if (!findUserRow(p.code)) {
-        recordInvalidCode();
         return jsonResponse({ success: false, error: '合言葉が見つかりません', code: 'CODE_INVALID' });
       }
     }
@@ -98,8 +91,12 @@ function createNewSpreadsheet(props) {
 // 合言葉ごとに1分あたりのリクエスト数を制限する（正規の合言葉への
 // 過剰アクセス・誤動作したクライアントからの連投対策）。注意: これは
 // 合言葉の総当たり攻撃には効かない。攻撃者は毎回違う合言葉を試すため
-// キー(rl_<code>)が毎回変わり、この制限には引っかからない。総当たり
-// 対策はcheckGlobalInvalidCodeLimit()側で行う
+// キー(rl_<code>)が毎回変わり、この制限には引っかからない。
+//
+// 合言葉に依存しないグローバルな失敗回数制限も一時検討したが、それ自体が
+// 認証不要で誰でも発火できてしまい、正規ユーザー全員を巻き込むDoSの
+// 手段になってしまうため撤回した。合言葉は32^8(≈1.1兆)通りあり、GAS自体の
+// 実行時間・呼び出し回数クォータが総当たりへの実質的な歯止めになっている
 const RATE_LIMIT_MAX_PER_WINDOW = 30;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 
@@ -109,27 +106,6 @@ function checkRateLimit(code) {
   const count = Number(cache.get(key) || '0') + 1;
   cache.put(key, String(count), RATE_LIMIT_WINDOW_SECONDS);
   return count <= RATE_LIMIT_MAX_PER_WINDOW;
-}
-
-// 合言葉に依存しないグローバルなキーで「合言葉が見つからなかった」回数を
-// 数える。総当たり攻撃者は毎回違う合言葉を試すため、上のcheckRateLimit
-// (合言葉ごと)は無力だが、これなら合言葉によらず検知できる。合言葉自体は
-// 32^8(≈1.1兆)通りあるため、正規ユーザーの誤入力でこの閾値に達することは
-// まず無い
-const GLOBAL_INVALID_CODE_MAX_PER_WINDOW = 50;
-const GLOBAL_INVALID_CODE_WINDOW_SECONDS = 60;
-const GLOBAL_INVALID_CODE_CACHE_KEY = 'global_invalid_code_count';
-
-function checkGlobalInvalidCodeLimit() {
-  const cache = CacheService.getScriptCache();
-  const count = Number(cache.get(GLOBAL_INVALID_CODE_CACHE_KEY) || '0');
-  return count < GLOBAL_INVALID_CODE_MAX_PER_WINDOW;
-}
-
-function recordInvalidCode() {
-  const cache = CacheService.getScriptCache();
-  const count = Number(cache.get(GLOBAL_INVALID_CODE_CACHE_KEY) || '0') + 1;
-  cache.put(GLOBAL_INVALID_CODE_CACHE_KEY, String(count), GLOBAL_INVALID_CODE_WINDOW_SECONDS);
 }
 
 // 合言葉→行番号のキャッシュ。全行スキャン(下記)は発行済み合言葉の数に
