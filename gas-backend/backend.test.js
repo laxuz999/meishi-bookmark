@@ -55,6 +55,7 @@ beforeEach(() => {
   const scriptProps = {}; // PropertiesServiceが永続的に保存するデータ
   scriptProps['STRIPE_API_KEY'] = 'sk_test_dummy';
   const cacheStore = new Map(); // CacheServiceが永続的に保存するデータ（TTLは無視し常に保持する簡易モック）
+  const fetchCalls = []; // UrlFetchApp.fetchに渡されたurl/optionsの記録（Authorizationヘッダー検証用）
 
   const createMockSpreadsheet = () => ({
     sheets: {},
@@ -98,8 +99,10 @@ beforeEach(() => {
         remove: (key) => { cacheStore.delete(key); },
       }),
     },
+    fetchCalls,
     UrlFetchApp: {
-      fetch: (url) => {
+      fetch: (url, options) => {
+        fetchCalls.push({ url, options });
         const eventId = url.split('/').pop();
         const event = mockStripeEvents[eventId];
         return {
@@ -150,7 +153,7 @@ function issueTestCode() {
   registerStripeEvent({
     id: eventId,
     type: 'checkout.session.completed',
-    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
   });
   postWebhook({ id: eventId });
   const claimRes = post({ action: 'claim_code', session_id: sessionId });
@@ -364,6 +367,15 @@ test('stripeApiGet: 未登録のイベントIDなら例外を投げる', () => {
   assert.throws(() => stripeApiGet('events/evt_unknown'), /Stripe API error/);
 });
 
+test('stripeApiGet: Authorization: Bearer <STRIPE_API_KEY>ヘッダーを付けてfetchする', () => {
+  registerStripeEvent({ id: 'evt_test_auth', type: 'checkout.session.completed' });
+  const stripeApiGet = vm.runInContext('stripeApiGet', sandbox);
+  stripeApiGet('events/evt_test_auth');
+  const call = sandbox.fetchCalls[sandbox.fetchCalls.length - 1];
+  assert.equal(call.url, 'https://api.stripe.com/v1/events/evt_test_auth');
+  assert.equal(call.options.headers.Authorization, 'Bearer sk_test_dummy');
+});
+
 test('issueCode: メールアドレスを渡すとC列(stripeCustomerEmail)に保存される', () => {
   const issueCode = vm.runInContext('issueCode', sandbox);
   const res = issueCode('buyer@example.com');
@@ -421,6 +433,21 @@ test('doGET: claim_code（read系）はPOSTと同じく動作可能', () => {
   assert.equal(res.code, 'ZZYYXXWW');
 });
 
+test('claim_code: "cs_"で始まらないsession_idはBAD_REQUESTエラー（cache-keyの名前空間衝突対策）', () => {
+  // "rl_xxx"のような値だと、CLAIM_CODE_CACHE_PREFIX('claim_')+session_idが
+  // checkClaimRateLimitのキー空間('claim_rl_'+session_id)と衝突しうる。
+  // 実在のStripe Checkout SessionIDは必ず"cs_"で始まるため、それ以外は弾く
+  const res = post({ action: 'claim_code', session_id: 'rl_something' });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'BAD_REQUEST');
+});
+
+test('claim_code: session_idが空文字・記号混じり等の不正形式もBAD_REQUESTエラー', () => {
+  const res = post({ action: 'claim_code', session_id: 'cs_ok;DROP TABLE' });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'BAD_REQUEST');
+});
+
 // テストから「Stripeに実在するイベント」を登録するヘルパー。
 // stripeApiGet('events/'+id)のモック応答に使われる
 function registerStripeEvent(event) {
@@ -434,6 +461,7 @@ test('handleCheckoutCompleted: mode=payment, amount_total=300なら合言葉を�
     mode: 'payment',
     payment_status: 'paid',
     amount_total: 300,
+    currency: 'jpy',
     customer_details: { email: 'buyer@example.com' },
   });
   const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
@@ -453,9 +481,16 @@ test('handleCheckoutCompleted: mode=subscriptionは無視する（買い切り�
 
 test('handleCheckoutCompleted: 想定外の金額は無視する（不正対策）', () => {
   const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
-  handleCheckoutCompleted({ id: 'cs_test_wrongamount', mode: 'payment', payment_status: 'paid', amount_total: 1 });
+  handleCheckoutCompleted({ id: 'cs_test_wrongamount', mode: 'payment', payment_status: 'paid', amount_total: 1, currency: 'jpy' });
   const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
   assert.equal(cache.get('claim_cs_test_wrongamount'), null);
+});
+
+test('handleCheckoutCompleted: 想定外の通貨は無視する（不正対策・別通貨で300単位が一致するケースへの防御）', () => {
+  const handleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  handleCheckoutCompleted({ id: 'cs_test_wrongcurrency', mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'usd' });
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  assert.equal(cache.get('claim_cs_test_wrongcurrency'), null);
 });
 
 test('handleCheckoutCompleted: payment_statusがpaid以外は無視する', () => {
@@ -471,7 +506,7 @@ test('E2E: Stripe決済完了Webhook→claim_codeで合言葉を取得できる'
   registerStripeEvent({
     id: eventId,
     type: 'checkout.session.completed',
-    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
   });
 
   const webhookRes = postWebhook({ id: eventId });
@@ -487,13 +522,30 @@ test('E2E: Stripe決済完了Webhook→claim_codeで合言葉を取得できる'
   assert.deepEqual(getRes.bookmarks, []);
 });
 
+test('E2E: checkout.session.async_payment_succeeded（コンビニ・銀行振込等の後払い決済確定）でも合言葉を取得できる', () => {
+  const sessionId = 'cs_test_async';
+  const eventId = 'evt_test_async';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.async_payment_succeeded',
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
+  });
+
+  const webhookRes = postWebhook({ id: eventId });
+  assert.equal(webhookRes.success, true);
+
+  const claimRes = post({ action: 'claim_code', session_id: sessionId });
+  assert.equal(claimRes.success, true);
+  assert.match(claimRes.code, /^[A-Z0-9]{8}$/);
+});
+
 test('E2E: 同じWebhookイベントを2回送っても合言葉は1回しか発行されない(冪等性)', () => {
   const sessionId = 'cs_test_dedupe';
   const eventId = 'evt_test_dedupe';
   registerStripeEvent({
     id: eventId,
     type: 'checkout.session.completed',
-    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
   });
 
   const first = postWebhook({ id: eventId });
@@ -532,7 +584,7 @@ test('handleStripeWebhook: handleCheckoutCompletedが例外を投げた場合、
   registerStripeEvent({
     id: eventId,
     type: 'checkout.session.completed',
-    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
   });
 
   // handleCheckoutCompletedを一時的に例外を投げる実装に差し替える
@@ -558,4 +610,45 @@ test('handleStripeWebhook: handleCheckoutCompletedが例外を投げた場合、
   const claimRes = post({ action: 'claim_code', session_id: sessionId });
   assert.equal(claimRes.success, true);
   assert.match(claimRes.code, /^[A-Z0-9]{8}$/);
+});
+
+test('handleStripeWebhook: 合言葉発行はWebhookペイロードではなく、Stripe APIで再取得したイベント側のデータを使う（ペイロードを信用しない）', () => {
+  const sessionId = 'cs_test_trustcheck';
+  const eventId = 'evt_test_trustcheck';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: sessionId,
+        mode: 'payment',
+        payment_status: 'paid',
+        amount_total: 300,
+        currency: 'jpy',
+        customer_details: { email: 'verified@example.com' },
+      },
+    },
+  });
+
+  // WebhookペイロードにはeventId以外何も含めない。もし実装がpayment_status/
+  // amount_total/customer_details等をペイロード側から直接読んでいたら、
+  // これらが未定義のため合言葉は発行されないはず（実際はstripeApiGetで
+  // 再取得したevent.data.objectを使うので発行される）
+  const res = postWebhook({ id: eventId });
+  assert.equal(res.success, true);
+
+  const claimRes = post({ action: 'claim_code', session_id: sessionId });
+  assert.equal(claimRes.success, true);
+
+  const sheet = vm.runInContext('getSheet()', sandbox);
+  const row = sheet.rows.find((r) => r[0] === claimRes.code);
+  assert.equal(row[2], 'verified@example.com', 'stripeCustomerEmailは再取得したevent側の値であるはず（ペイロードには含まれていない）');
+});
+
+test('doPost: Webhook経路(?stripe_webhook=1)でJSONパースに失敗してもHtmlServiceで返す(302回避)', () => {
+  const doPost = vm.runInContext('doPost', sandbox);
+  const result = doPost({ postData: { contents: 'not-json{{{' }, parameter: { stripe_webhook: '1' } });
+  assert.equal(result._isHtml, true, '不正JSONでもwebhook経路の応答はHtmlServiceで返るはず(302回避)');
+  const body = JSON.parse(result._t);
+  assert.equal(body.success, false);
 });

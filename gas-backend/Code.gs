@@ -10,7 +10,7 @@ const CODE_LENGTH = 8;
 
 function doGet(e) {
   const p = e && e.parameter ? e.parameter : {};
-  // GETリクエストでは書き込み系アクション（issue_code, save_bookmarks）を実行させない
+  // GETリクエストでは書き込み系アクション（save_bookmarks等）を実行させない
   // ブラウザのリンクプレビューボット等が意図せずアクセスして副作用を起こすリスク対策
   const route = ROUTES[p.action];
   if (route && route.write) {
@@ -20,16 +20,27 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  // Stripe Webhook（URLクエリ ?stripe_webhook=1 で判別。ROUTESとは別処理・action不要）。
+  // action不要でpostData.contentsを見る前に判別できるため、JSONパースより先に
+  // この分岐を行う。こうすることで、webhook経路と判定した以降の応答は
+  // パース失敗も含めて全てwebhookResponse(HtmlService)を通す
+  // （ContentServiceは302リダイレクトを挟みStripeのWebhook配信が失敗扱いに
+  // なるため、この経路ではJSON.parseの失敗時もjsonResponseに逃がさない）
+  if (e.parameter && e.parameter.stripe_webhook) {
+    let webhookPayload;
+    try {
+      webhookPayload = JSON.parse(e.postData.contents);
+    } catch (err) {
+      console.error('[stripe webhook] invalid JSON payload: ' + err.message);
+      return webhookResponse({ success: false, error: 'invalid JSON' });
+    }
+    return webhookResponse(handleStripeWebhook(webhookPayload));
+  }
   let p;
   try {
     p = JSON.parse(e.postData.contents);
   } catch (err) {
     return jsonResponse({ success: false, error: 'invalid JSON', code: 'BAD_REQUEST' });
-  }
-  // Stripe Webhook（URLクエリ ?stripe_webhook=1 で判別。ROUTESとは別処理・action不要）
-  // 302リダイレクト回避のためwebhookResponse(HtmlService)で返す
-  if (e.parameter && e.parameter.stripe_webhook) {
-    return webhookResponse(handleStripeWebhook(p));
   }
   return handle(p);
 }
@@ -259,8 +270,17 @@ function checkClaimRateLimit(sessionId) {
   return count <= CLAIM_RATE_LIMIT_MAX_PER_WINDOW;
 }
 
+// Stripe Checkout SessionのIDは必ず"cs_"で始まる。session_idはauth:'none'で
+// 誰でも自由な値を渡せてしまうため、想定外の形式を早期に拒否する。これにより
+// 例えば"rl_xxx"のような値でCLAIM_CODE_CACHE_PREFIX('claim_')+session_idが
+// checkClaimRateLimitのキー空間('claim_rl_'+session_id)と衝突する経路も塞げる
+const CLAIM_SESSION_ID_PATTERN = /^cs_[A-Za-z0-9_]+$/;
+
 function claimCode(sessionId) {
   if (!sessionId) return { success: false, error: 'session_idが必要です', code: 'BAD_REQUEST' };
+  if (!CLAIM_SESSION_ID_PATTERN.test(sessionId)) {
+    return { success: false, error: '不正なリクエストです', code: 'BAD_REQUEST' };
+  }
   if (!checkClaimRateLimit(sessionId)) {
     return { success: false, error: 'アクセスが集中しています。しばらくしてからお試しください', code: 'RATE_LIMITED' };
   }
@@ -283,6 +303,7 @@ function webhookResponse(obj) {
 function handleCheckoutCompleted(session) {
   if (session.mode !== 'payment' || session.payment_status !== 'paid') return;
   if (session.amount_total !== STRIPE_PRICE_JPY) return; // 想定外金額は無視（不正対策）
+  if (session.currency !== 'jpy') return; // 想定外通貨は無視（不正対策・将来の別通貨リンク誤爆対策）
   const email = (session.customer_details && session.customer_details.email) || '';
   const result = issueCode(email);
   CacheService.getScriptCache().put(CLAIM_CODE_CACHE_PREFIX + session.id, result.code, CLAIM_CODE_CACHE_TTL_SECONDS);
@@ -292,7 +313,10 @@ function handleCheckoutCompleted(session) {
 // （NEXUA本体gas_backend.jsのhandleStripeWebhookと同じ設計）
 function handleStripeWebhook(raw) {
   const eventId = raw && raw.id;
-  if (!eventId) return { success: false, error: 'no event id' };
+  if (!eventId) {
+    console.error('[stripe webhook] no event id in payload');
+    return { success: false, error: 'no event id' };
+  }
 
   const cache = CacheService.getScriptCache();
   const dedupeKey = 'stripe_evt_' + eventId;
@@ -302,19 +326,28 @@ function handleStripeWebhook(raw) {
   try {
     event = stripeApiGet('events/' + eventId);
   } catch (err) {
+    console.error('[stripe webhook] verification failed for eventId=' + eventId + ': ' + err.message);
     return { success: false, error: 'verification failed: ' + err.message };
   }
   if (!event || event.id !== eventId) {
+    console.error('[stripe webhook] event verification mismatch for eventId=' + eventId);
     return { success: false, error: 'event verification mismatch' };
   }
 
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(20 * 1000)) return { success: false, error: 'busy' };
+  if (!lock.tryLock(20 * 1000)) {
+    console.error('[stripe webhook] lock busy for eventId=' + eventId + ' type=' + event.type);
+    return { success: false, error: 'busy' };
+  }
   try {
     // ロック取得待ちの間に、同じイベントの別配信が先に処理を終えている
     // 可能性があるため、ロック内で冪等チェックをやり直す
     if (cache.get(dedupeKey)) return { success: true, skipped: 'duplicate' };
-    if (event.type === 'checkout.session.completed') {
+    // checkout.session.completedは即時決済(カード等)、async_payment_succeededは
+    // 後払い系(コンビニ・銀行振込等)決済リンクで支払いが確定した時に届く別イベント。
+    // どちらも同じセッションオブジェクト形状(mode/payment_status/amount_total等)を
+    // 持つため、同じハンドラで処理してよい
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       handleCheckoutCompleted(event.data.object);
     }
     // 冪等フラグは副作用(handleCheckoutCompleted)が成功した後に立てる。
@@ -323,6 +356,7 @@ function handleStripeWebhook(raw) {
     cache.put(dedupeKey, '1', 21600); // 6時間（CacheServiceの最大保持時間）
     return { success: true };
   } catch (err) {
+    console.error('[stripe webhook] handleCheckoutCompleted failed for eventId=' + eventId + ' type=' + event.type + ': ' + err.message);
     return { success: false, error: err.message };
   } finally {
     lock.releaseLock();

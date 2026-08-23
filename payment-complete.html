@@ -38,6 +38,13 @@
     import { claimCode } from './src/pocketApi.js?v=20260823e';
 
     const POCKET_CODE_KEY = 'meishi_pocket_code';
+    // index.html側の同名定数(POCKET_LAST_SYNCED_KEY)と同じキー文字列。
+    // index.htmlのsyncWithPocketCode()は「保存済みの合言葉と違う合言葉に
+    // なったら最終同期時刻をクリアする」処理を持つが、このページが先に
+    // 新しい合言葉をPOCKET_CODE_KEYへ書き込んでしまうと、index.html側の
+    // 比較時点では既に「前回の合言葉」=「今回の合言葉」になっており、
+    // その判定が発火しなくなる。そのため、ここで同じ処理を先回りして行う
+    const POCKET_LAST_SYNCED_KEY = 'meishi_pocket_last_synced';
     const waitingUi = document.getElementById('waiting-ui');
     const waitingMessage = document.getElementById('waiting-message');
     const codeUi = document.getElementById('code-ui');
@@ -64,13 +71,30 @@
           if (res.success) {
             // 合言葉が確実に取得できた時点で初めてlocalStorageに保存する
             // （index.htmlの既存方針: 検証成功までは書き込まない、を踏襲）
+            //
+            // 以前の合言葉と異なる場合は、前回の同期時刻(POCKET_LAST_SYNCED_KEY)を
+            // 引き継がない。index.html側のsyncWithPocketCode()にも同じ処理があるが、
+            // この時点で先にPOCKET_CODE_KEYを新しい合言葉で上書きしてしまうため、
+            // index.html側が後で「前回の合言葉と違うか」を比較しても既に一致してしまい
+            // 発火しない。そのため、ここで先に行っておく必要がある
+            // （引き継いでしまうと、古い合言葉との同期より前にこの端末へ保存した
+            // 名刺の savedAt が古い lastSynced より前と判定され、新しい合言葉側に
+            // 一切マージされず消えたように見えてしまう）
+            if (localStorage.getItem(POCKET_CODE_KEY) !== res.code) {
+              localStorage.removeItem(POCKET_LAST_SYNCED_KEY);
+            }
             localStorage.setItem(POCKET_CODE_KEY, res.code);
             codeDisplay.textContent = res.code;
             waitingUi.style.display = 'none';
             codeUi.style.display = 'block';
             return;
           }
-          if (res.code !== 'PENDING') {
+          if (res.code === 'RATE_LIMITED') {
+            // レート制限はスライディングウィンドウ(呼ぶたびにTTLが延びる)で、
+            // ポーリング中に何度もこのページを再読み込みすると発生しうる。
+            // 決済自体は完了しているはずなので、エラー扱いにせず
+            // PENDINGと同様に待機を続ける（エラーUIを出して止めない）
+          } else if (res.code !== 'PENDING') {
             errorMessage.textContent = res.error || '合言葉の取得に失敗しました。';
             waitingUi.style.display = 'none';
             errorUi.style.display = 'block';
@@ -82,7 +106,7 @@
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
-      waitingMessage.textContent = '決済は完了していますが、合言葉の準備に時間がかかっています。少し時間を置いてこのページを再読み込みしてください。';
+      waitingMessage.textContent = '決済は完了していますが、合言葉の準備に時間がかかっています。少し時間を置いてこのページを再読み込みしてください。それでも解決しない場合は、決済時のメールアドレス（Stripeの領収書に記載）を添えて運営にお問い合わせください。';
     }
 
     codeCopyBtn.addEventListener('click', async () => {
