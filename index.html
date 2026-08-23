@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NEXUA名刺ポケット</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -285,6 +284,11 @@
     import { saveLocal, listLocal, deleteLocal, deleteLocalByUrl, updateLocalMemo, updateLocalTags } from './src/storage.js?v=20260822p';
 
     const POCKET_CODE_KEY = 'meishi_pocket_code';
+    // 直前に成功した合言葉同期の時刻(ISO文字列)。差分マージ時、この時刻より後に
+    // このローカル端末で保存された名刺だけを「新規追加」として扱うために使う
+    // （そうしないと、別端末で削除した名刺が、削除を知らないこの端末のローカルに
+    // 残っているせいで、次回同期時にサーバー側へ復活してしまう）
+    const POCKET_LAST_SYNCED_KEY = 'meishi_pocket_last_synced';
 
     function getSavedPocketCode() {
       return localStorage.getItem(POCKET_CODE_KEY);
@@ -358,6 +362,9 @@
     let allBookmarks = [];
     // 一覧の表示元。'local' = このブラウザのlocalStorage、'pocket' = 合言葉で同期中
     let syncMode = 'local';
+    // 発行直後、まだ「ひかえました」が押されていない合言葉。検証（同期成功）が
+    // 取れるまではlocalStorageに書き込まず、この変数だけで保持する
+    let pendingIssuedCode = null;
 
     function showLocalOnlyUi() {
       backupBtn.disabled = false;
@@ -397,30 +404,49 @@
       });
     }
 
-    // 合言葉で同期する。ローカルの新規分をアップロードしてから、最新の一覧を取得する
+    // 合言葉で同期する。ローカルの新規分をアップロードしてから、最新の一覧を取得する。
+    // 合言葉のlocalStorageへの保存は、getBookmarksでの実在確認（検証）が成功した
+    // 後にのみ行う。こうしないと、誤入力した無効な合言葉で、既に保存されていた
+    // 有効な合言葉を上書きして失ってしまう
     async function syncWithPocketCode(code) {
       try {
         const remote = await getBookmarks(code);
         if (!remote.success) throw new Error(remote.error || '合言葉が見つかりません');
+
+        const previousCode = getSavedPocketCode();
+        if (previousCode !== code) {
+          // 別の合言葉に切り替わった場合は、前回の同期時刻を引き継がない。
+          // 引き継いでしまうと、以前の合言葉との同期より前にこの端末へ保存した
+          // 名刺が、新しい合言葉側には一切マージされなくなってしまう
+          localStorage.removeItem(POCKET_LAST_SYNCED_KEY);
+        }
+        localStorage.setItem(POCKET_CODE_KEY, code);
+
         const remoteList = remote.bookmarks;
         const localList = listLocal();
+        const lastSynced = localStorage.getItem(POCKET_LAST_SYNCED_KEY);
         const merged = [...remoteList];
         for (const localB of localList) {
-          if (!remoteList.some((r) => r.url === localB.url)) {
+          if (remoteList.some((r) => r.url === localB.url)) continue;
+          // 初回同期（lastSyncedがまだ無い）は全部含める。2回目以降は、前回の
+          // 同期より後にこの端末で保存された分だけを「新規追加」として扱う
+          if (!lastSynced || (localB.savedAt && localB.savedAt > lastSynced)) {
             merged.push(localB);
           }
         }
         const saveRes = await saveBookmarks(code, merged);
         if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
 
+        localStorage.setItem(POCKET_LAST_SYNCED_KEY, new Date().toISOString());
         allBookmarks = merged;
         syncMode = 'pocket';
+        backupBtn.disabled = false;
         backupBtn.textContent = '同期済みです';
         pageTitleEl.textContent = '合言葉で同期中 - NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
         renderCards();
       } catch (err) {
-        await appAlert('同期に失敗しました。もう一度お試しください。');
+        await appAlert(err.message || '同期に失敗しました。もう一度お試しください。');
         showLocalOnlyUi();
       }
     }
@@ -656,22 +682,30 @@
     });
     pocketIssueBtn.addEventListener('click', async () => {
       pocketChoiceModal.style.display = 'none';
+      // 既に合言葉を発行・入力済みの場合、無警告で上書きすると今のデータと
+      // 切り離されてしまうため、事前に確認する
+      if (getSavedPocketCode()) {
+        const proceed = await appConfirm('既に合言葉があります。新しく発行すると今のデータと切り離されます。よろしいですか？');
+        if (!proceed) return;
+      }
       backupBtn.disabled = true;
       backupBtn.textContent = '発行しています...';
       try {
         const res = await issueCode();
         if (!res.success) throw new Error(res.error || '発行に失敗しました');
-        localStorage.setItem(POCKET_CODE_KEY, res.code);
+        // 検証（同期成功）が取れるまではlocalStorageに書き込まない
+        pendingIssuedCode = res.code;
         pocketCodeDisplay.textContent = res.code;
         pocketCodeShownModal.style.display = 'flex';
       } catch (err) {
-        await appAlert('合言葉の発行に失敗しました。もう一度お試しください。');
+        await appAlert(err.message || '合言葉の発行に失敗しました。もう一度お試しください。');
         showLocalOnlyUi();
       }
     });
     pocketCodeShownOk.addEventListener('click', async () => {
       pocketCodeShownModal.style.display = 'none';
-      await syncWithPocketCode(getSavedPocketCode());
+      await syncWithPocketCode(pendingIssuedCode);
+      pendingIssuedCode = null;
     });
     pocketOpenInputBtn.addEventListener('click', () => {
       pocketChoiceModal.style.display = 'none';
@@ -685,9 +719,10 @@
       const code = pocketCodeInput.value.trim().toUpperCase();
       if (!code) return;
       pocketCodeInputModal.style.display = 'none';
-      localStorage.setItem(POCKET_CODE_KEY, code);
       backupBtn.disabled = true;
       backupBtn.textContent = '同期しています...';
+      // 合言葉のlocalStorageへの保存はsyncWithPocketCode内で検証成功後にのみ
+      // 行われる。誤入力の場合、既存の有効な合言葉は上書きされずに残る
       await syncWithPocketCode(code);
     });
     searchEl.addEventListener('input', renderCards);

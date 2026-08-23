@@ -113,7 +113,6 @@
 ## 未決定・実装計画フェーズで詰める事項
 
 - Stripe Checkoutの具体的な導線（商品作成、価格、成功/キャンセルページ）
-- GASプロジェクトの新規作成・デプロイ方法（clasp、GitHub Actions連携をNEXUA本体に倣うか）
 - 合言葉表示後のUI（コピーしやすさ、再表示の可否）
 - 既存のindex.html/src配下のどこまでを新規ファイルに切り出すか
 
@@ -129,3 +128,4 @@
 - 2026-08-22: 初版作成
 - 2026-08-22: Task 2でGAS backendをclaspデプロイ。appsscript.jsonの`webapp.access`はTask 1の`"ANYONE"`だとログイン必須になることが判明したため`"ANYONE_ANONYMOUS"`に修正して確定。デプロイURLを記録（疎通確認は認可未完了によりブロック中）
 - 2026-08-23: ユーザーが手動でOAuth権限承認を完了。別実装者によるCode.gsの`getSheet()`修正（standalone scriptでの`getActiveSpreadsheet()`null問題、コミット65c2f86）をpush・再デプロイ（同一デプロイURL、version @5）。匿名アクセスの疎通確認が成功し、問題は解消
+- 2026-08-23: Task4の最終レビュー指摘を反映。合言葉入力は検証成功後にのみlocalStorageへ保存するよう変更（誤入力による既存合言葉の上書き消失を防止）。合言葉の再発行は既存合言葉がある場合に確認ダイアログを挟むよう変更。差分同期のマージ処理に`meishi_pocket_last_synced`（前回同期時刻）を導入し、他端末で削除した名刺がローカルの古いデータにより復活する不具合を修正。GAS backend側は`findUserRow`をA列のみ読むよう軽量化し、合言葉の生成を`Math.random()`から`Utilities.getUuid()`ベースに変更（詳細はtask-4-report.md参照）

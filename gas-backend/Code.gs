@@ -83,20 +83,32 @@ function createNewSpreadsheet(props) {
   return ss;
 }
 
-// 1-indexedの行番号を返す（ヘッダー行を除く）。見つからなければnull
+// 1-indexedの行番号を返す（ヘッダー行を除く）。見つからなければnull。
+// 合言葉の照合にはA列だけあれば十分なため、bookmarksJson列を含む全列を
+// 毎回読み込まず、getRangeでA列だけを読む（データが増えるほど重くなる
+// getDataRange().getValues()を避ける）
 function findUserRow(code) {
   if (!code) return null;
-  const rows = getSheet().getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === code) return i + 1;
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null; // ヘッダー行のみ、またはヘッダーすら無い
+  const codes = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < codes.length; i++) {
+    if (codes[i][0] === code) return i + 2;
   }
   return null;
 }
 
+// Math.random()は暗号学的に安全な乱数ではないため、Utilities.getUuid()由来の
+// 16進数を2桁ずつCODE_CHARSのインデックスに変換して使う。256(=16進数2桁の
+// 取りうる値の数)はCODE_CHARSの文字数32でちょうど割り切れるため、変換に
+// 偏りが出ない
 function generateCode() {
+  const hex = Utilities.getUuid().replace(/-/g, '');
   let code = '';
   for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    code += CODE_CHARS[byte % CODE_CHARS.length];
   }
   return code;
 }

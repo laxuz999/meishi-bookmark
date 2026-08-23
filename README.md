@@ -4,9 +4,8 @@ NEXUAの名刺URLを保存して一覧で見返せるツール。
 
 - 本番サイト: https://laxuz999.github.io/meishi-bookmark/
 - **基本**: 「保存」を押すと認証なしでその端末のブラウザ内（localStorage）に即保存。1タップで完結し、誰でもすぐ使える
-- **オプション**: 一覧画面の「Googleでバックアップ・他の端末と同期する」を押した人だけGoogleログインに進み、以後はお客様自身のGoogle Drive内「NEXUAブックマーク」シートと同期する（初回連携時、それまでローカルに貯まっていたデータもまとめてアップロード）。運営側はデータを一切保持しません
-- **オプション（Google連携済みのみ）**: メモ編集欄から写真を追加できる（カメラ起動 or ファイル選択）。お客様自身のGoogle Driveへアップロードし、「リンクを知っている人は閲覧可」で共有した上でカードに表示する
-- **オプション（Google連携済みのみ）**: 「📇 紙の名刺を登録」から、紙の名刺の表面・裏面を撮影して登録できる（名前・タグ・メモは手入力。文字の自動読み取りは非対応）
+- **オプション（合言葉方式）**: 一覧画面の「合言葉を発行して他の端末とも同期する」から、新しく8桁の合言葉を発行するか、既に持っている合言葉を入力すると、他の端末とも同じ名刺一覧を共有できる。合言葉を発行すると、名刺のテキスト情報（名前・URL・タグ・メモ）はNEXUA運営が管理するサーバー（`gas-backend/`、GAS Web App + スプレッドシート）に保存される。仕組みの詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`を参照
+- **一時停止中**: 紙の名刺の登録・メモへの写真添付機能は、上記の合言葉方式への移行に伴い現在利用できません（今後作り直して復活予定）
 
 ### 注意: iPhoneでホーム画面に追加する場合
 
@@ -29,24 +28,18 @@ iOS（Safari/Chrome）でこのページをホーム画面に追加する手順:
 npm test
 ```
 
-（`node --test src/` はこの環境のNode.jsバージョンではディレクトリ指定が動作しないため、`npm test`＝`node --test src/**/*.test.js` を使う）
+（`node --test src/` はこの環境のNode.jsバージョンではディレクトリ指定が動作しないため、`npm test`＝`node --test 'src/**/*.test.js' 'gas-backend/**/*.test.js'` を使う。GAS backendのテストはNode.js上のvmモジュールでGASのAPIを最小モックして実行している）
 
-## OAuthクライアントIDの設定
+## 同期バックエンド（GAS Web App）のデプロイ
 
-1. Google Cloud Consoleで新規プロジェクトを作成
-2. 「APIとサービス」→「ライブラリ」で Google Sheets API と Google Drive API を有効化
-3. 「APIとサービス」→「OAuth同意画面」を設定
-   - User Type: 外部
-   - スコープは追加不要（`drive.file` は非機密スコープのためスコープ登録画面での明示追加は不要）
-   - **本番公開するまでは「テスト」ステータスのまま**で、「対象」→「テストユーザー」に使う人のGoogleアカウントを登録しておく（登録した人しかログインできない）
-4. 「APIとサービス」→「認証情報」→「認証情報を作成」→「OAuthクライアントID」（種類: ウェブアプリケーション）
-5. 「承認済みのJavaScript生成元」に本番URLのオリジン（例: `https://laxuz999.github.io`）を追加
-6. 発行されたクライアントIDを `index.html` 内の `GOOGLE_CLIENT_ID` に設定
+合言葉方式の同期は `gas-backend/Code.gs` をGoogle Apps Script（standalone script、コンテナバインドなし）としてデプロイして使う。ログイン・OAuth同意画面は不要（匿名アクセス）。
 
-### 使用スコープ
+1. `gas-backend/`配下を[clasp](https://github.com/google/clasp)でpush
+2. `gas-backend/appsscript.json`の`webapp.access`は`"ANYONE_ANONYMOUS"`にする（`"ANYONE"`だとログイン必須になり匿名アクセスできない）
+3. Webアプリとしてデプロイ（実行ユーザー: 自分、アクセスできるユーザー: 全員）
+4. 発行されたデプロイURLを `src/pocketApi.js` の `API_URL` に設定
+5. 初回`issue_code`実行時、データ保存用のスプレッドシート（「NEXUA名刺ポケット 合言葉データ」）が`SpreadsheetApp.create()`で自動作成される。そのIDはScript Properties（`PropertiesService`）の`SPREADSHEET_ID`に保存される
 
-`https://www.googleapis.com/auth/drive.file`（このアプリが作成/開いたファイルにのみアクセス、非機密スコープ）のみを使用。ユーザーの他のGoogle Driveファイルにはアクセスしない。
+保存されるのは名刺のテキスト情報（url/name/tags/memo）のみ。写真は現在この同期の対象外（機能自体が一時停止中）。
 
-### 本番公開（テスト制限の解除）について
-
-「テスト」ステータスのままだと、テストユーザーとして登録した人しかログインできない（上限100人）。NEXUAアカウントを持たない一般の人にも使ってもらうには、OAuth同意画面を「本番環境に公開」する必要がある。使用スコープが `drive.file`（非機密）のみであれば、Googleの審査なしで公開できる見込み。
+設計の経緯・詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`を参照。

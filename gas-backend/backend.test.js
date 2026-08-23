@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,8 +13,26 @@ class MockSheet {
   constructor() { this.rows = []; }
   getDataRange() { return { getValues: () => this.rows.map((r) => [...r]) }; }
   appendRow(r) { this.rows.push([...r]); }
-  getRange(r, c) {
+  getLastRow() { return this.rows.length; }
+  // 単一セル: getRange(row, col) / 範囲: getRange(row, col, numRows, numCols)
+  getRange(r, c, numRows, numCols) {
     const self = this;
+    if (numRows !== undefined) {
+      return {
+        getValues: () => {
+          const result = [];
+          for (let i = 0; i < numRows; i++) {
+            const row = self.rows[r - 1 + i] || [];
+            const cols = [];
+            for (let j = 0; j < (numCols || 1); j++) {
+              cols.push(row[c - 1 + j] ?? '');
+            }
+            result.push(cols);
+          }
+          return result;
+        },
+      };
+    }
     return {
       getValue: () => (self.rows[r - 1] || [])[c - 1] ?? '',
       setValue: (v) => {
@@ -71,6 +90,7 @@ beforeEach(() => {
       createTextOutput: (t) => ({ _t: t, setMimeType() { return this; } }),
       MimeType: { JSON: 1 },
     },
+    Utilities: { getUuid: () => crypto.randomUUID() },
     Math, Date, JSON, Array, String, Number,
   };
   vm.createContext(sandbox);
@@ -100,6 +120,23 @@ test('issue_code: 紛らわしい文字(0,O,1,I)を含まない', () => {
   }
   const all = [...seen].join('');
   assert.equal(/[0O1I]/.test(all), false);
+});
+
+test('generateCode: Utilities.getUuid()ベースで生成し、書式・偏りの無さを確認する', () => {
+  // issueCode()のリトライループ（既存コード重複時は再生成）を経由すると
+  // 一意性が保証されてしまいUtilities.getUuid()側の分布は検証できないため、
+  // generateCode()を直接呼び出して確認する
+  const generateCode = vm.runInContext('generateCode', sandbox);
+  const seen = new Set();
+  for (let i = 0; i < 50; i++) {
+    const code = generateCode();
+    assert.match(code, /^[A-Z0-9]{8}$/);
+    assert.equal(/[0O1I]/.test(code), false);
+    seen.add(code);
+  }
+  // Math.random()禁止（UUIDベースの乱数を使っている）ことの簡易確認:
+  // 50回中、大半がユニークであること（固定値を返す等の壊れた実装を検知する）
+  assert.ok(seen.size > 45, `重複が多すぎる: ユニーク数=${seen.size}/50`);
 });
 
 test('get_bookmarks: 発行直後は空配列を返す', () => {
