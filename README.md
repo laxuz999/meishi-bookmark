@@ -29,7 +29,7 @@ iOS（Safari/Chrome）でこのページをホーム画面に追加する手順:
 npm test
 ```
 
-（`node --test src/` はこの環境のNode.jsバージョンではディレクトリ指定が動作しないため、`npm test`＝`node --test 'src/**/*.test.js' 'gas-backend/**/*.test.js'` を使う。GAS backendのテストはNode.js上のvmモジュールでGASのAPIを最小モックして実行している）
+（`node --test`にディレクトリやglobパターンをそのまま渡す方式は、シェル・Node.jsバージョンによって動作しないことがある（GitHub Actions上のnode --test 'src/**/*.test.js'で「Could not find」エラーになった実績あり）。そのため`npm test`＝`node --test $(find src gas-backend -name '*.test.js')`で、事前にfindでテストファイルの一覧を確定させてから渡している。GAS backendのテストはNode.js上のvmモジュールでGASのAPIを最小モックして実行している）
 
 ## 同期バックエンド（GAS Web App）のデプロイ
 

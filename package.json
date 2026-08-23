@@ -3,6 +3,6 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node --test 'src/**/*.test.js' 'gas-backend/**/*.test.js'"
+    "test": "node --test $(find src gas-backend -name '*.test.js')"
   }
 }
