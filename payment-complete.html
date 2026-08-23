@@ -59,21 +59,26 @@
         return;
       }
       for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-        const res = await claimCode(sessionId);
-        if (res.success) {
-          // 合言葉が確実に取得できた時点で初めてlocalStorageに保存する
-          // （index.htmlの既存方針: 検証成功までは書き込まない、を踏襲）
-          localStorage.setItem(POCKET_CODE_KEY, res.code);
-          codeDisplay.textContent = res.code;
-          waitingUi.style.display = 'none';
-          codeUi.style.display = 'block';
-          return;
-        }
-        if (res.code !== 'PENDING') {
-          errorMessage.textContent = res.error || '合言葉の取得に失敗しました。';
-          waitingUi.style.display = 'none';
-          errorUi.style.display = 'block';
-          return;
+        try {
+          const res = await claimCode(sessionId);
+          if (res.success) {
+            // 合言葉が確実に取得できた時点で初めてlocalStorageに保存する
+            // （index.htmlの既存方針: 検証成功までは書き込まない、を踏襲）
+            localStorage.setItem(POCKET_CODE_KEY, res.code);
+            codeDisplay.textContent = res.code;
+            waitingUi.style.display = 'none';
+            codeUi.style.display = 'block';
+            return;
+          }
+          if (res.code !== 'PENDING') {
+            errorMessage.textContent = res.error || '合言葉の取得に失敗しました。';
+            waitingUi.style.display = 'none';
+            errorUi.style.display = 'block';
+            return;
+          }
+        } catch (err) {
+          // 通信が一時的に切れただけの可能性がある。決済自体はStripe側で
+          // 完了済みのはずなので、エラーを出さずに次のポーリングでリトライする
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
