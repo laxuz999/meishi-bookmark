@@ -200,12 +200,16 @@ test('save_bookmarks: JSON文字数上限(MAX_BOOKMARKS_JSON_LENGTH)を超える
   assert.equal(res.code, 'PAYLOAD_TOO_LARGE');
 });
 
-test('save_bookmarks: bookmarksが配列でない場合は空配列として扱う（クラッシュしない）', () => {
+test('save_bookmarks: bookmarksが配列でない場合はエラーを返し、既存データは消さない', () => {
   const { code } = post({ action: 'issue_code' });
+  post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'a', name: '既存データ' }] });
   const res = post({ action: 'save_bookmarks', code, bookmarks: 'not-an-array' });
-  assert.equal(res.success, true);
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'INVALID_PAYLOAD');
+  // 不正なペイロードを拒否しても、既存データが空配列に上書きされていないこと
   const getRes = post({ action: 'get_bookmarks', code });
-  assert.deepEqual(getRes.bookmarks, []);
+  assert.equal(getRes.bookmarks.length, 1);
+  assert.equal(getRes.bookmarks[0].name, '既存データ');
 });
 
 test('get_bookmarks: 存在しない合言葉はCODE_INVALIDエラー', () => {

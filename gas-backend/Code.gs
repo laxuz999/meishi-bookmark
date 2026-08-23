@@ -189,7 +189,13 @@ const MAX_BOOKMARKS_COUNT = 500;
 const MAX_BOOKMARKS_JSON_LENGTH = 45000;
 
 function saveBookmarks(code, bookmarks) {
-  const list = Array.isArray(bookmarks) ? bookmarks : [];
+  // bookmarksが配列でない場合、従来は黙って空配列に読み替えて保存成功を
+  // 返しており、不正な呼び出し（バグ等）でユーザーの既存データがエラーも
+  // 出さずに消えてしまっていた。配列でなければ保存せずエラーを返す
+  if (!Array.isArray(bookmarks)) {
+    return { success: false, error: 'データの形式が不正です', code: 'INVALID_PAYLOAD' };
+  }
+  const list = bookmarks;
   if (list.length > MAX_BOOKMARKS_COUNT) {
     return { success: false, error: `保存できる名刺は${MAX_BOOKMARKS_COUNT}件までです`, code: 'TOO_MANY_BOOKMARKS' };
   }
