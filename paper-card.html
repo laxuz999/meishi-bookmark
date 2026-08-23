@@ -222,7 +222,7 @@
   <script type="module">
     import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823b';
     import { uploadPhoto } from './src/drive.js?v=20260823b';
-    import { getBookmarks, saveBookmarks } from './src/pocketApi.js?v=20260823b';
+    import { getBookmarks, saveBookmarks, isPaperCard } from './src/pocketApi.js?v=20260823c';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const POCKET_CODE_KEY = 'meishi_pocket_code';
@@ -324,9 +324,8 @@
       return localStorage.getItem(POCKET_CODE_KEY);
     }
 
-    // 紙の名刺 = url無し・写真あり のエントリのみ
     function paperCardsOnly(list) {
-      return list.filter((b) => !b.url && b.frontPhotoUrl);
+      return list.filter(isPaperCard);
     }
 
     function renderPaperCards() {

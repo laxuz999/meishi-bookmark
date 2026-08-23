@@ -25,3 +25,10 @@ export function getBookmarks(code) {
 export function saveBookmarks(code, bookmarks) {
   return callApi({ action: 'save_bookmarks', code, bookmarks });
 }
+
+// 「紙の名刺」= URLが無く、表面写真があるエントリのみを指す。
+// index.html（通常の名刺一覧）とpaper-card.html（紙の名刺一覧）の
+// 両方が同じ判定を使うことで、片方だけ直して表示がズレるのを防ぐ
+export function isPaperCard(bookmark) {
+  return !bookmark.url && !!bookmark.frontPhotoUrl;
+}

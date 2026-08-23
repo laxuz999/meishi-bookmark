@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { issueCode, getBookmarks, saveBookmarks } from './pocketApi.js';
+import { issueCode, getBookmarks, saveBookmarks, isPaperCard } from './pocketApi.js';
 
 let calls;
 beforeEach(() => {
@@ -46,4 +46,16 @@ test('saveBookmarks: codeとbookmarksをPOSTする', async () => {
   assert.equal(body.action, 'save_bookmarks');
   assert.equal(body.code, 'ABCDEFGH');
   assert.deepEqual(body.bookmarks, bookmarks);
+});
+
+test('isPaperCard: urlが無く表面写真があれば紙の名刺と判定する', () => {
+  assert.equal(isPaperCard({ url: '', frontPhotoUrl: 'https://drive/x.jpg' }), true);
+});
+
+test('isPaperCard: urlがあれば紙の名刺ではない', () => {
+  assert.equal(isPaperCard({ url: 'https://nexua.tech/#zz1', frontPhotoUrl: 'https://drive/x.jpg' }), false);
+});
+
+test('isPaperCard: 表面写真が無ければ紙の名刺ではない', () => {
+  assert.equal(isPaperCard({ url: '', frontPhotoUrl: '' }), false);
 });
