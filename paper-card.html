@@ -226,6 +226,12 @@
     </div>
   </div>
 
+  <!-- 名刺写真の拡大表示（背景クリックまたは閉じるボタンで閉じる） -->
+  <div id="lightbox-modal" style="display:none" class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/80">
+    <button id="lightbox-close" class="absolute top-4 right-4 text-white text-3xl leading-none w-10 h-10 flex items-center justify-center" aria-label="閉じる">&times;</button>
+    <img id="lightbox-img" class="max-w-full max-h-full object-contain rounded-lg" alt="" />
+  </div>
+
   <script type="module">
     import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823b';
     import { uploadPhoto } from './src/drive.js?v=20260823b';
@@ -261,6 +267,24 @@
     const paperCardCancelBtn = document.getElementById('paper-card-cancel');
     const paperCardSaveBtn = document.getElementById('paper-card-save');
     const { appAlert, appConfirm } = createAppDialog();
+    const lightboxModal = document.getElementById('lightbox-modal');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxClose = document.getElementById('lightbox-close');
+
+    function openLightbox(url, alt) {
+      lightboxImg.src = url;
+      lightboxImg.alt = alt;
+      lightboxModal.style.display = 'flex';
+    }
+    function closeLightbox() {
+      lightboxModal.style.display = 'none';
+      lightboxImg.removeAttribute('src');
+    }
+    lightboxClose.addEventListener('click', closeLightbox);
+    // 背景（画像自体は除く）をクリックしたら閉じる
+    lightboxModal.addEventListener('click', (e) => {
+      if (e.target === lightboxModal) closeLightbox();
+    });
 
     function resizeImageFile(file, maxDim = 1600, quality = 0.8) {
       return new Promise((resolve, reject) => {
@@ -366,6 +390,10 @@
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             link.className = 'card-photo-link';
+            link.addEventListener('click', (e) => {
+              e.preventDefault();
+              openLightbox(url, label + '面');
+            });
             const img = document.createElement('img');
             img.src = url;
             img.alt = label + '面';
