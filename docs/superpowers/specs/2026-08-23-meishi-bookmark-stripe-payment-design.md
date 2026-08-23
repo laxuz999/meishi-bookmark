@@ -77,3 +77,5 @@
 ## 変更履歴
 
 - 2026-08-23: 初版作成。ユーザーとの相談で価格(¥300)・決済方式(Payment Links)・受け渡し方法(完了ページ自動表示)・既存データの扱い(全削除)を確定
+- 2026-08-23: 実装計画(`docs/superpowers/plans/2026-08-23-meishi-bookmark-stripe-payment.md`)に基づき、Subagent-Driven Developmentでコード実装を完了。`gas-backend/Code.gs`にStripe API疎通ヘルパー・`claim_code`アクション・Webhook処理(冪等化・実在確認・ロック)を追加し`issue_code`を廃止、`gas-backend/backend.test.js`の全テストを新フローに合わせて書き換え。`src/pocketApi.js`の`claimCode()`追加・`issueCode()`削除。`index.html`のボタン導線をStripe Payment Linksへの遷移に変更し、`payment-complete.html`を新設。全てレビュー済み・GAS backend(clasp deploy @11)およびGitHub Pagesへのデプロイ済み。
+  - **未実施（このコミット時点）**: 運用セットアップ(1) `STRIPE_API_KEY`のスクリプトプロパティ設定、(2) GASエディタでの`script.external_request`スコープ承認、(3) Stripeダッシュボードでの決済リンクの決済後リダイレクト設定、(4) StripeダッシュボードでのWebhookエンドポイント登録、(5) `users`シートのリセット、(6) 実機での実決済E2E確認。これらが完了するまで、コードは本番に存在するが決済フロー自体はまだ機能しない（`STRIPE_API_KEY`未設定のため`stripeApiGet`が例外を投げ、Webhookが失敗する）
