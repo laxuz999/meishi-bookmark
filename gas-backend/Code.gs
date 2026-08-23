@@ -154,8 +154,23 @@ function getBookmarks(code) {
   return { success: true, bookmarks };
 }
 
+// スプレッドシートの1セルには文字数上限(約5万字)があり、それを超えると
+// setValueがエラーになり以後そのユーザーが保存できなくなってしまう。
+// bookmarksの中身は検証していなかったため、合言葉さえ分かれば巨大な
+// ダミーデータを送りつけてこの状態を意図的に作れてしまっていた
+const MAX_BOOKMARKS_COUNT = 500;
+const MAX_BOOKMARKS_JSON_LENGTH = 45000;
+
 function saveBookmarks(code, bookmarks) {
+  const list = Array.isArray(bookmarks) ? bookmarks : [];
+  if (list.length > MAX_BOOKMARKS_COUNT) {
+    return { success: false, error: `保存できる名刺は${MAX_BOOKMARKS_COUNT}件までです`, code: 'TOO_MANY_BOOKMARKS' };
+  }
+  const json = JSON.stringify(list);
+  if (json.length > MAX_BOOKMARKS_JSON_LENGTH) {
+    return { success: false, error: 'データが大きすぎます', code: 'PAYLOAD_TOO_LARGE' };
+  }
   const row = findUserRow(code);
-  getSheet().getRange(row, 4).setValue(JSON.stringify(bookmarks || []));
+  getSheet().getRange(row, 4).setValue(json);
   return { success: true };
 }

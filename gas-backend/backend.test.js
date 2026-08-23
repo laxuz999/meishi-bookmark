@@ -171,6 +171,42 @@ test('save_bookmarksは前回の内容を上書きする（追記ではない）
   assert.equal(res.bookmarks[0].name, '2件目');
 });
 
+test('save_bookmarks: 件数上限(MAX_BOOKMARKS_COUNT)を超えるとTOO_MANY_BOOKMARKSエラー', () => {
+  const { code } = post({ action: 'issue_code' });
+  const MAX = vm.runInContext('MAX_BOOKMARKS_COUNT', sandbox);
+  const tooMany = Array.from({ length: MAX + 1 }, (_, i) => ({ url: `u${i}`, name: `n${i}` }));
+  const res = post({ action: 'save_bookmarks', code, bookmarks: tooMany });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'TOO_MANY_BOOKMARKS');
+  // 拒否した場合は保存されていないこと（発行直後の空配列のまま）
+  const getRes = post({ action: 'get_bookmarks', code });
+  assert.deepEqual(getRes.bookmarks, []);
+});
+
+test('save_bookmarks: 件数上限ちょうどは保存できる（境界値）', () => {
+  const { code } = post({ action: 'issue_code' });
+  const MAX = vm.runInContext('MAX_BOOKMARKS_COUNT', sandbox);
+  const exactly = Array.from({ length: MAX }, (_, i) => ({ url: `u${i}`, name: `n${i}` }));
+  const res = post({ action: 'save_bookmarks', code, bookmarks: exactly });
+  assert.equal(res.success, true);
+});
+
+test('save_bookmarks: JSON文字数上限(MAX_BOOKMARKS_JSON_LENGTH)を超えるとPAYLOAD_TOO_LARGEエラー', () => {
+  const { code } = post({ action: 'issue_code' });
+  const hugeMemo = 'x'.repeat(60000);
+  const res = post({ action: 'save_bookmarks', code, bookmarks: [{ url: 'a', name: 'n', memo: hugeMemo }] });
+  assert.equal(res.success, false);
+  assert.equal(res.code, 'PAYLOAD_TOO_LARGE');
+});
+
+test('save_bookmarks: bookmarksが配列でない場合は空配列として扱う（クラッシュしない）', () => {
+  const { code } = post({ action: 'issue_code' });
+  const res = post({ action: 'save_bookmarks', code, bookmarks: 'not-an-array' });
+  assert.equal(res.success, true);
+  const getRes = post({ action: 'get_bookmarks', code });
+  assert.deepEqual(getRes.bookmarks, []);
+});
+
 test('get_bookmarks: 存在しない合言葉はCODE_INVALIDエラー', () => {
   const res = post({ action: 'get_bookmarks', code: 'NOTFOUND' });
   assert.equal(res.success, false);
