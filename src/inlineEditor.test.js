@@ -1,38 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderEditableRow } from './inlineEditor.js';
-
-// node:testにはDOMがないため、renderEditableRowが使うAPIだけの簡易モックを
-// 用意する（storage.test.jsのlocalStorageモックと同じ方針）。実際のブラウザ
-// 描画・見た目の確認はPlaywrightでの実機確認に任せ、ここでは状態遷移
-// （表示→編集→保存/キャンセル）のロジックだけを検証する
-function makeElement(tag) {
-  const listeners = {};
-  return {
-    tagName: tag,
-    className: '',
-    textContent: '',
-    value: '',
-    style: {},
-    children: [],
-    appendChild(child) {
-      this.children.push(child);
-      return child;
-    },
-    replaceChild(newChild, oldChild) {
-      const i = this.children.indexOf(oldChild);
-      if (i !== -1) this.children[i] = newChild;
-      return oldChild;
-    },
-    addEventListener(type, fn) {
-      (listeners[type] ??= []).push(fn);
-    },
-    dispatch(type) {
-      (listeners[type] || []).forEach((fn) => fn());
-    },
-    focus() {},
-  };
-}
+import { makeElement } from './testDom.js';
 
 function baseOpts(overrides) {
   return {
@@ -108,8 +77,11 @@ test('renderEditableRow: キャンセルで表示行に戻る', () => {
 test('renderEditableRow: 保存を押すと入力値でonSaveが呼ばれる', async () => {
   const card = makeElement('div');
   let savedValue;
+  // onSave自体の完了をPromiseで待つ（マイクロタスクのホップ数を決め打ちしない）
+  let resolveSaved;
+  const saved = new Promise((resolve) => { resolveSaved = resolve; });
   setupWithDocument(card, baseOpts({
-    onSave: async (raw) => { savedValue = raw; },
+    onSave: async (raw) => { savedValue = raw; resolveSaved(); },
   }));
   const row = card.children[0];
   row.children[1].dispatch('click');
@@ -119,25 +91,24 @@ test('renderEditableRow: 保存を押すと入力値でonSaveが呼ばれる', a
   const saveBtn = editArea.children[1].children[0];
   assert.equal(saveBtn.textContent, '保存');
   saveBtn.dispatch('click');
-  await Promise.resolve();
-  await Promise.resolve();
+  await saved;
   assert.equal(savedValue, 'DIY,新タグ');
 });
 
 test('renderEditableRow: onSaveが失敗したらonSaveErrorが呼ばれる', async () => {
   const card = makeElement('div');
   let caughtErr;
+  let resolveHandled;
+  const handled = new Promise((resolve) => { resolveHandled = resolve; });
   setupWithDocument(card, baseOpts({
     onSave: async () => { throw new Error('保存に失敗しました'); },
-    onSaveError: async (err) => { caughtErr = err; },
+    onSaveError: async (err) => { caughtErr = err; resolveHandled(); },
   }));
   const row = card.children[0];
   row.children[1].dispatch('click');
   const editArea = card.children[0];
   const saveBtn = editArea.children[1].children[0];
   saveBtn.dispatch('click');
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  await handled;
   assert.equal(caughtErr.message, '保存に失敗しました');
 });

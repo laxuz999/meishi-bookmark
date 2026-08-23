@@ -1,26 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createAppDialog } from './dialog.js';
-
-// node:testにはDOMがないため、createAppDialogが使うAPIだけの簡易モックを用意
-// （storage.test.jsのlocalStorageモックと同じ方針）
-function makeElement() {
-  const listeners = {};
-  return {
-    textContent: '',
-    style: {},
-    addEventListener(type, fn) {
-      (listeners[type] ??= []).push(fn);
-    },
-    removeEventListener(type, fn) {
-      if (!listeners[type]) return;
-      listeners[type] = listeners[type].filter((f) => f !== fn);
-    },
-    dispatch(type) {
-      (listeners[type] || []).forEach((fn) => fn());
-    },
-  };
-}
+import { makeElement } from './testDom.js';
 
 let els;
 beforeEach(() => {
