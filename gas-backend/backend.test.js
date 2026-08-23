@@ -531,3 +531,37 @@ test('handleStripeWebhook: 未対応のイベント種別は成功扱いで無�
   const res = postWebhook({ id: eventId });
   assert.equal(res.success, true);
 });
+
+test('handleStripeWebhook: handleCheckoutCompletedが例外を投げた場合、冪等フラグを立てず再送で成功する', () => {
+  const eventId = 'evt_test_retry';
+  const sessionId = 'cs_test_retry';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: { object: { id: sessionId, mode: 'payment', payment_status: 'paid', amount_total: 300 } },
+  });
+
+  // handleCheckoutCompletedを一時的に例外を投げる実装に差し替える
+  const originalHandleCheckoutCompleted = vm.runInContext('handleCheckoutCompleted', sandbox);
+  vm.runInContext('handleCheckoutCompleted = function() { throw new Error("simulated failure"); }', sandbox);
+
+  const failed = postWebhook({ id: eventId });
+  assert.equal(failed.success, false);
+  assert.equal(failed.error, 'simulated failure');
+
+  const cache = vm.runInContext('CacheService.getScriptCache()', sandbox);
+  assert.equal(
+    cache.get('stripe_evt_' + eventId),
+    null,
+    '副作用が失敗した場合は冪等フラグを立ててはいけない（次回の再配信で再試行できるようにするため）'
+  );
+
+  // 元の実装に戻して同じイベントを再送
+  sandbox.handleCheckoutCompleted = originalHandleCheckoutCompleted;
+  const retried = postWebhook({ id: eventId });
+  assert.equal(retried.success, true, '失敗後の再送は(duplicate扱いされず)成功するはず');
+
+  const claimRes = post({ action: 'claim_code', session_id: sessionId });
+  assert.equal(claimRes.success, true);
+  assert.match(claimRes.code, /^[A-Z0-9]{8}$/);
+});

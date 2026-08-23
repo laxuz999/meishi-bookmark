@@ -308,14 +308,19 @@ function handleStripeWebhook(raw) {
     return { success: false, error: 'event verification mismatch' };
   }
 
-  cache.put(dedupeKey, '1', 21600); // 6時間（CacheServiceの最大保持時間）
-
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(20 * 1000)) return { success: false, error: 'busy' };
   try {
+    // ロック取得待ちの間に、同じイベントの別配信が先に処理を終えている
+    // 可能性があるため、ロック内で冪等チェックをやり直す
+    if (cache.get(dedupeKey)) return { success: true, skipped: 'duplicate' };
     if (event.type === 'checkout.session.completed') {
       handleCheckoutCompleted(event.data.object);
     }
+    // 冪等フラグは副作用(handleCheckoutCompleted)が成功した後に立てる。
+    // 先に立てるとhandleCheckoutCompleted内で例外が起きた場合に
+    // 「処理済み」と誤認され、Stripeからの再配信を永久に無視してしまう
+    cache.put(dedupeKey, '1', 21600); // 6時間（CacheServiceの最大保持時間）
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
