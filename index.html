@@ -241,6 +241,7 @@
       <div class="flex flex-col gap-3">
         <button id="pocket-issue-btn" class="py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">新しく合言葉を発行する</button>
         <button id="pocket-open-input-btn" class="py-2.5 rounded-xl border border-neutral-200 text-neutral-600 font-semibold text-sm hover:border-rose-400 hover:text-rose-500">持っている合言葉を入力する</button>
+        <button id="pocket-unlink-btn" style="display:none" class="py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:border-rose-400 hover:text-rose-500">この端末の同期を解除する</button>
         <button id="pocket-choice-cancel" class="py-2 text-neutral-400 text-xs">やめる</button>
       </div>
     </div>
@@ -310,6 +311,7 @@
     const pocketChoiceModal = document.getElementById('pocket-choice-modal');
     const pocketIssueBtn = document.getElementById('pocket-issue-btn');
     const pocketOpenInputBtn = document.getElementById('pocket-open-input-btn');
+    const pocketUnlinkBtn = document.getElementById('pocket-unlink-btn');
     const pocketChoiceCancel = document.getElementById('pocket-choice-cancel');
     const pocketCodeShownModal = document.getElementById('pocket-code-shown-modal');
     const pocketCodeDisplay = document.getElementById('pocket-code-display');
@@ -371,6 +373,8 @@
     function showLocalOnlyUi() {
       backupBtn.disabled = false;
       backupBtn.textContent = '合言葉を発行して他の端末とも同期する';
+      pageTitleEl.textContent = 'NEXUA名刺ポケット';
+      document.body.classList.remove('google-synced');
     }
 
     // ホーム画面保存の案内をiPhone/Androidのどちらか一方だけに絞り込むための判定。
@@ -677,10 +681,20 @@
       }
     });
     backupBtn.addEventListener('click', () => {
+      // 既に合言葉が保存されている場合だけ「同期を解除する」を出す
+      pocketUnlinkBtn.style.display = getSavedPocketCode() ? 'block' : 'none';
       pocketChoiceModal.style.display = 'flex';
     });
     pocketChoiceCancel.addEventListener('click', () => {
       pocketChoiceModal.style.display = 'none';
+    });
+    pocketUnlinkBtn.addEventListener('click', async () => {
+      const proceed = await appConfirm('この端末の同期を解除します。この端末に保存されている名刺データ自体は消えませんが、合言葉を入力し直すまで他の端末とは同期されなくなります。よろしいですか？');
+      if (!proceed) return;
+      pocketChoiceModal.style.display = 'none';
+      localStorage.removeItem(POCKET_CODE_KEY);
+      localStorage.removeItem(POCKET_LAST_SYNCED_KEY);
+      listFlow();
     });
     pocketIssueBtn.addEventListener('click', async () => {
       pocketChoiceModal.style.display = 'none';
