@@ -222,6 +222,7 @@
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">合言葉を発行して他の端末とも同期する</button>
+      <a id="paper-card-link" href="./paper-card.html" style="display:none" class="block w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm text-center hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺を登録</a>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -307,6 +308,7 @@
     const homeScreenNoticeAndroidEl = document.getElementById('home-screen-notice-android');
     const listLinkEl = document.getElementById('list-link');
     const backupBtn = document.getElementById('backup-btn');
+    const paperCardLinkEl = document.getElementById('paper-card-link');
     const pageTitleEl = document.getElementById('page-title');
     const pocketChoiceModal = document.getElementById('pocket-choice-modal');
     const pocketIssueBtn = document.getElementById('pocket-issue-btn');
@@ -375,6 +377,7 @@
       backupBtn.textContent = '合言葉を発行して他の端末とも同期する';
       pageTitleEl.textContent = 'NEXUA名刺ポケット';
       document.body.classList.remove('google-synced');
+      paperCardLinkEl.style.display = 'none';
     }
 
     // ホーム画面保存の案内をiPhone/Androidのどちらか一方だけに絞り込むための判定。
@@ -455,6 +458,7 @@
         backupBtn.textContent = '同期済みです';
         pageTitleEl.textContent = 'S-NEXUA名刺ポケット';
         document.body.classList.add('google-synced');
+        paperCardLinkEl.style.display = 'block';
         renderCards();
       } catch (err) {
         await appAlert(err.message || '同期に失敗しました。もう一度お試しください。');
@@ -573,6 +577,27 @@
             }
           });
         });
+
+        // 紙の名刺の表裏写真（合言葉で同期している場合のみ）
+        if (syncMode === 'pocket' && (b.frontPhotoUrl || b.backPhotoUrl)) {
+          const cardPhotosRow = document.createElement('div');
+          cardPhotosRow.className = 'card-photos-row';
+          [['表', b.frontPhotoUrl], ['裏', b.backPhotoUrl]].forEach(([label, url]) => {
+            if (!url) return;
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'card-photo-link';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = label + '面';
+            img.className = 'card-photo-thumb';
+            link.appendChild(img);
+            cardPhotosRow.appendChild(link);
+          });
+          card.appendChild(cardPhotosRow);
+        }
 
         // ひとことメモ（後から編集可能）
         const memoRow = document.createElement('div');
