@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>紙の名刺を登録 - NEXUA名刺ポケット</title>
+  <title>紙の名刺 - NEXUA名刺ポケット</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -11,79 +11,172 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
       background: linear-gradient(160deg, #eff6ff 0%, #e0f2fe 35%, #dbeafe 70%, #eef2ff 100%);
     }
+    #paper-cards > div {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid #ffffff;
+      border-radius: 1rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      padding: 1rem;
+    }
+    #paper-cards .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      row-gap: 0.5rem;
+      gap: 0.75rem;
+      width: 100%;
+    }
+    #paper-cards .row > span:first-child {
+      font-weight: 700;
+      color: #262626;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    #paper-cards .row > span:last-of-type {
+      font-size: 0.7rem;
+      color: #a3a3a3;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #paper-cards .row > button {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #f43f5e;
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 9999px;
+      padding: 0.35rem 0.75rem;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    #paper-cards .row > button:hover {
+      background: #ffe4e6;
+    }
+    #paper-cards .memo-text {
+      font-size: 0.7rem;
+      color: #a3a3a3;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #paper-cards .card-photos-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    #paper-cards .card-photo-link {
+      display: block;
+      flex: 1;
+      min-width: 0;
+    }
+    #paper-cards .card-photo-thumb {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      border-radius: 0.5rem;
+      display: block;
+    }
   </style>
 </head>
 <body class="min-h-screen text-neutral-800">
   <div class="max-w-md mx-auto px-6 py-12">
-    <h1 class="text-lg font-bold text-center text-neutral-800 mb-1 tracking-tight">📇 紙の名刺を登録</h1>
+    <h1 class="text-lg font-bold text-center text-neutral-800 mb-1 tracking-tight">📇 紙の名刺</h1>
     <p class="text-center mb-6"><a href="./" class="text-[11px] text-neutral-400 hover:text-rose-500 underline underline-offset-2">一覧にもどる</a></p>
 
     <!-- 合言葉が未設定の場合の案内 -->
     <div id="no-code-notice" style="display:none" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-4 text-sm leading-relaxed text-center">
-      紙の名刺の登録には、まず一覧画面で合言葉を発行・入力してください。<br><br>
+      紙の名刺の管理には、まず一覧画面で合言葉を発行・入力してください。<br><br>
       <a href="./" class="inline-block px-6 py-2.5 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">一覧画面へ</a>
     </div>
 
-    <!-- Google連携の案内（写真の保存先はあなた自身のGoogle Drive） -->
-    <div id="google-link-notice" style="display:none">
-      <p class="text-sm leading-relaxed bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-4 mb-4">
-        写真はあなた自身のGoogle Driveに保存されます（NEXUAの運営は保存しません）。続けるにはGoogleと連携してください。
-      </p>
-      <button id="google-link-btn" class="w-full px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">Googleと連携する</button>
+    <!-- 紙の名刺一覧（Google連携不要。合言葉のバックエンドから取得するだけ） -->
+    <div id="paper-list-ui" style="display:none">
+      <button id="paper-card-open-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">＋ 新しく登録する</button>
+      <p id="paper-list-status" class="text-sm text-neutral-500 text-center mb-4">読み込み中...</p>
+      <div id="paper-cards" class="flex flex-col gap-3"></div>
     </div>
 
-    <!-- 登録フォーム -->
-    <div id="paper-card-form" style="display:none">
-      <label class="block text-xs text-neutral-500 mb-1.5">名前</label>
-      <input id="paper-card-name" type="text" placeholder="例：山田太郎" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+    <!-- 紙の名刺を撮影して登録するモーダル -->
+    <div id="paper-card-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40 overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-sm text-neutral-700 my-8">
+        <h3 class="font-bold text-base mb-4">📇 紙の名刺を登録</h3>
 
-      <label class="block text-xs text-neutral-500 mb-1.5">タグ（カンマ区切り・任意）</label>
-      <input id="paper-card-tags" type="text" placeholder="例：DIY,交流会" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+        <!-- Google連携の案内（写真の保存先はあなた自身のGoogle Drive） -->
+        <div id="google-link-notice">
+          <p class="leading-relaxed bg-neutral-50 border border-neutral-200 rounded-xl p-3 mb-4 text-xs">
+            写真はあなた自身のGoogle Driveに保存されます（NEXUAの運営は保存しません）。続けるにはGoogleと連携してください。
+          </p>
+          <button id="google-link-btn" class="w-full mb-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">Googleと連携する</button>
+          <button id="paper-card-cancel-before-link" class="w-full py-2 text-neutral-400 text-xs">やめる</button>
+        </div>
 
-      <label class="block text-xs text-neutral-500 mb-1.5">メモ（任意）</label>
-      <textarea id="paper-card-memo" rows="2" placeholder="例：〇〇交流会で名刺交換" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
+        <!-- 登録フォーム（Google連携後に表示） -->
+        <div id="paper-card-form" style="display:none">
+          <label class="block text-xs text-neutral-500 mb-1.5">名前</label>
+          <input id="paper-card-name" type="text" placeholder="例：山田太郎" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
 
-      <p class="text-xs text-neutral-400 mb-2">スマホを横向きで撮影すると綺麗に収まります</p>
-      <input id="paper-card-front-input" type="file" accept="image/*" capture="environment" style="display:none" />
-      <button id="paper-card-front-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 表面を撮影・選択（必須）</button>
-      <img id="paper-card-front-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
+          <label class="block text-xs text-neutral-500 mb-1.5">タグ（カンマ区切り・任意）</label>
+          <input id="paper-card-tags" type="text" placeholder="例：DIY,交流会" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
 
-      <input id="paper-card-back-input" type="file" accept="image/*" capture="environment" style="display:none" />
-      <button id="paper-card-back-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 裏面を撮影・選択（任意）</button>
-      <img id="paper-card-back-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
+          <label class="block text-xs text-neutral-500 mb-1.5">メモ（任意）</label>
+          <textarea id="paper-card-memo" rows="2" placeholder="例：〇〇交流会で名刺交換" class="w-full mb-4 px-4 py-2.5 bg-white/80 border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all resize-none"></textarea>
 
-      <button id="paper-card-save" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">登録する</button>
-    </div>
+          <p class="text-xs text-neutral-400 mb-2">スマホを横向きで撮影すると綺麗に収まります</p>
+          <input id="paper-card-front-input" type="file" accept="image/*" capture="environment" style="display:none" />
+          <button id="paper-card-front-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 表面を撮影・選択（必須）</button>
+          <img id="paper-card-front-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
 
-    <!-- 登録完了 -->
-    <div id="paper-card-done" style="display:none" class="bg-white/70 backdrop-blur border border-neutral-200 rounded-2xl p-4 text-sm leading-relaxed text-center">
-      ✓ 登録しました。<br><br>
-      <a href="./" class="inline-block px-6 py-2.5 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">一覧画面へ</a>
+          <input id="paper-card-back-input" type="file" accept="image/*" capture="environment" style="display:none" />
+          <button id="paper-card-back-btn" type="button" class="w-full mb-4 px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-xs font-semibold text-neutral-600 hover:border-rose-400 hover:text-rose-500 transition-colors">📷 裏面を撮影・選択（任意）</button>
+          <img id="paper-card-back-preview" style="display:none" class="w-full aspect-[16/10] object-cover rounded-xl mb-4" />
+
+          <div class="flex gap-3">
+            <button id="paper-card-cancel" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">やめる</button>
+            <button id="paper-card-save" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">登録する</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- alert()の代替（URLが出ないよう自前モーダルで表示） -->
-  <div id="app-dialog-modal" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/40">
+  <!-- alert()/confirm()の代替（URLが出ないよう自前モーダルで表示） -->
+  <div id="app-dialog-modal" style="display:none" class="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/40">
     <div class="bg-white rounded-2xl shadow-2xl max-w-xs w-full p-6 text-sm text-neutral-700">
       <p class="text-[10px] font-bold text-rose-500 mb-2 tracking-wide">NEXUA名刺ポケット</p>
       <p id="app-dialog-message" class="mb-5 leading-relaxed"></p>
-      <button id="app-dialog-ok" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">OK</button>
+      <div class="flex gap-3">
+        <button id="app-dialog-cancel" style="display:none" class="flex-1 py-2.5 rounded-xl border border-neutral-200 text-neutral-500 font-semibold text-sm hover:bg-neutral-50">キャンセル</button>
+        <button id="app-dialog-ok" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-orange-400 text-white font-bold text-sm shadow-md hover:from-rose-500 hover:to-orange-500">OK</button>
+      </div>
     </div>
   </div>
 
   <script type="module">
-    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823a';
-    import { uploadPhoto } from './src/drive.js?v=20260823a';
-    import { getBookmarks, saveBookmarks } from './src/pocketApi.js?v=20260823a';
+    import { initGoogleAuth, requestLogin } from './src/auth.js?v=20260823b';
+    import { uploadPhoto } from './src/drive.js?v=20260823b';
+    import { getBookmarks, saveBookmarks } from './src/pocketApi.js?v=20260823b';
 
     const GOOGLE_CLIENT_ID = '36570369679-h9sfr7dh7i1suota1j6eko79el7gsu30.apps.googleusercontent.com';
     const POCKET_CODE_KEY = 'meishi_pocket_code';
 
     const noCodeNotice = document.getElementById('no-code-notice');
+    const paperListUi = document.getElementById('paper-list-ui');
+    const paperListStatus = document.getElementById('paper-list-status');
+    const paperCardsEl = document.getElementById('paper-cards');
+    const paperCardOpenBtn = document.getElementById('paper-card-open-btn');
+    const paperCardModal = document.getElementById('paper-card-modal');
     const googleLinkNotice = document.getElementById('google-link-notice');
     const googleLinkBtn = document.getElementById('google-link-btn');
+    const paperCardCancelBeforeLink = document.getElementById('paper-card-cancel-before-link');
     const paperCardForm = document.getElementById('paper-card-form');
-    const paperCardDone = document.getElementById('paper-card-done');
     const paperCardNameInput = document.getElementById('paper-card-name');
     const paperCardTagsInput = document.getElementById('paper-card-tags');
     const paperCardMemoInput = document.getElementById('paper-card-memo');
@@ -93,14 +186,17 @@
     const paperCardBackInput = document.getElementById('paper-card-back-input');
     const paperCardBackBtn = document.getElementById('paper-card-back-btn');
     const paperCardBackPreview = document.getElementById('paper-card-back-preview');
+    const paperCardCancelBtn = document.getElementById('paper-card-cancel');
     const paperCardSaveBtn = document.getElementById('paper-card-save');
     const dialogModalEl = document.getElementById('app-dialog-modal');
     const dialogMessageEl = document.getElementById('app-dialog-message');
+    const dialogCancelBtn = document.getElementById('app-dialog-cancel');
     const dialogOkBtn = document.getElementById('app-dialog-ok');
 
     function appAlert(message) {
       return new Promise((resolve) => {
         dialogMessageEl.textContent = message;
+        dialogCancelBtn.style.display = 'none';
         dialogModalEl.style.display = 'flex';
         const onOk = () => {
           dialogModalEl.style.display = 'none';
@@ -111,8 +207,23 @@
       });
     }
 
-    // メモ添付写真と同じ方式：スマホのカメラ写真は数MBになりがちなため、
-    // canvasでリサイズ・JPEG圧縮してからアップロードする
+    function appConfirm(message) {
+      return new Promise((resolve) => {
+        dialogMessageEl.textContent = message;
+        dialogCancelBtn.style.display = 'block';
+        dialogModalEl.style.display = 'flex';
+        const cleanup = () => {
+          dialogModalEl.style.display = 'none';
+          dialogOkBtn.removeEventListener('click', onOk);
+          dialogCancelBtn.removeEventListener('click', onCancel);
+        };
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
+        dialogOkBtn.addEventListener('click', onOk);
+        dialogCancelBtn.addEventListener('click', onCancel);
+      });
+    }
+
     function resizeImageFile(file, maxDim = 1600, quality = 0.8) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -145,9 +256,136 @@
       });
     }
 
+    let allBookmarks = [];
     let paperCardFrontBlob = null;
     let paperCardBackBlob = null;
 
+    function getCode() {
+      return localStorage.getItem(POCKET_CODE_KEY);
+    }
+
+    // 紙の名刺 = url無し・写真あり のエントリのみ
+    function paperCardsOnly(list) {
+      return list.filter((b) => !b.url && b.frontPhotoUrl);
+    }
+
+    function renderPaperCards() {
+      const list = paperCardsOnly(allBookmarks);
+      paperListStatus.style.display = list.length ? 'none' : 'block';
+      paperListStatus.textContent = 'まだ紙の名刺は登録されていません。';
+      paperCardsEl.innerHTML = '';
+      for (const b of list) {
+        const card = document.createElement('div');
+        const row = document.createElement('div');
+        row.className = 'row';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = b.name || '（名前未設定）';
+        row.appendChild(nameSpan);
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = b.savedAt ? new Date(b.savedAt).toLocaleDateString('ja-JP') : '';
+        row.appendChild(dateSpan);
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '削除';
+        delBtn.addEventListener('click', async () => {
+          const target = b.name || '（名前未設定の名刺）';
+          if (!(await appConfirm(`「${target}」を削除します。よろしいですか？`))) return;
+          try {
+            const code = getCode();
+            const updated = allBookmarks.filter((x) => x !== b);
+            const res = await saveBookmarks(code, updated);
+            if (!res.success) throw new Error(res.error || '削除に失敗しました');
+            allBookmarks = updated;
+            renderPaperCards();
+          } catch (err) {
+            await appAlert(err.message || '削除に失敗しました。もう一度お試しください。');
+          }
+        });
+        row.appendChild(delBtn);
+        card.appendChild(row);
+
+        if (b.frontPhotoUrl || b.backPhotoUrl) {
+          const photosRow = document.createElement('div');
+          photosRow.className = 'card-photos-row';
+          [['表', b.frontPhotoUrl], ['裏', b.backPhotoUrl]].forEach(([label, url]) => {
+            if (!url) return;
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'card-photo-link';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = label + '面';
+            img.className = 'card-photo-thumb';
+            link.appendChild(img);
+            photosRow.appendChild(link);
+          });
+          card.appendChild(photosRow);
+        }
+
+        if (b.tags && b.tags.length) {
+          const tagsText = document.createElement('p');
+          tagsText.className = 'memo-text';
+          tagsText.textContent = b.tags.join('・');
+          card.appendChild(tagsText);
+        }
+        if (b.memo) {
+          const memoText = document.createElement('p');
+          memoText.className = 'memo-text';
+          memoText.textContent = b.memo;
+          card.appendChild(memoText);
+        }
+
+        paperCardsEl.appendChild(card);
+      }
+    }
+
+    async function loadPaperCards() {
+      const code = getCode();
+      paperListStatus.style.display = 'block';
+      paperListStatus.textContent = '読み込み中...';
+      try {
+        const res = await getBookmarks(code);
+        if (!res.success) throw new Error(res.error || '一覧の取得に失敗しました');
+        allBookmarks = res.bookmarks;
+        renderPaperCards();
+      } catch (err) {
+        paperListStatus.textContent = '読み込みに失敗しました。もう一度開き直してください。';
+      }
+    }
+
+    function resetPaperCardForm() {
+      paperCardNameInput.value = '';
+      paperCardTagsInput.value = '';
+      paperCardMemoInput.value = '';
+      paperCardFrontInput.value = '';
+      paperCardBackInput.value = '';
+      paperCardFrontBlob = null;
+      paperCardBackBlob = null;
+      paperCardFrontPreview.style.display = 'none';
+      paperCardFrontPreview.removeAttribute('src');
+      paperCardBackPreview.style.display = 'none';
+      paperCardBackPreview.removeAttribute('src');
+      paperCardFrontBtn.textContent = '📷 表面を撮影・選択（必須）';
+      paperCardBackBtn.textContent = '📷 裏面を撮影・選択（任意）';
+      paperCardSaveBtn.disabled = false;
+      paperCardSaveBtn.textContent = '登録する';
+      googleLinkNotice.style.display = 'block';
+      paperCardForm.style.display = 'none';
+      googleLinkBtn.disabled = false;
+      googleLinkBtn.textContent = 'Googleと連携する';
+    }
+
+    paperCardOpenBtn.addEventListener('click', () => {
+      resetPaperCardForm();
+      paperCardModal.style.display = 'flex';
+    });
+    paperCardCancelBeforeLink.addEventListener('click', () => {
+      paperCardModal.style.display = 'none';
+    });
+    paperCardCancelBtn.addEventListener('click', () => {
+      paperCardModal.style.display = 'none';
+    });
     paperCardFrontBtn.addEventListener('click', () => paperCardFrontInput.click());
     paperCardBackBtn.addEventListener('click', () => paperCardBackInput.click());
 
@@ -181,11 +419,7 @@
         await appAlert('表面の写真は必須です。撮影・選択してください。');
         return;
       }
-      const code = localStorage.getItem(POCKET_CODE_KEY);
-      if (!code) {
-        await appAlert('合言葉が見つかりません。一覧画面からやり直してください。');
-        return;
-      }
+      const code = getCode();
       paperCardSaveBtn.disabled = true;
       paperCardSaveBtn.textContent = '登録中...';
       try {
@@ -209,8 +443,9 @@
         const saveRes = await saveBookmarks(code, updated);
         if (!saveRes.success) throw new Error(saveRes.error || '保存に失敗しました');
 
-        paperCardForm.style.display = 'none';
-        paperCardDone.style.display = 'block';
+        allBookmarks = updated;
+        renderPaperCards();
+        paperCardModal.style.display = 'none';
       } catch (err) {
         paperCardSaveBtn.disabled = false;
         paperCardSaveBtn.textContent = '登録する';
@@ -238,15 +473,16 @@
     // ページを開いた時点ではGoogleとは一切通信しない。連携ボタンを押した
     // 時だけrequestLogin()を呼ぶ（自動サイレントログインは行わない。
     // index.htmlの同期処理と同じ方針で、勝手にアカウント選択画面が出る
-    // 問題を避けるため）
+    // 問題を避けるため）。一覧の取得・表示・削除はGoogle連携不要
     window.addEventListener('load', () => {
-      const code = localStorage.getItem(POCKET_CODE_KEY);
+      const code = getCode();
       if (!code) {
         noCodeNotice.style.display = 'block';
         return;
       }
       initGoogleAuth(GOOGLE_CLIENT_ID, onGoogleToken, onGoogleError);
-      googleLinkNotice.style.display = 'block';
+      paperListUi.style.display = 'block';
+      loadPaperCards();
     });
   </script>
 </body>

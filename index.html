@@ -147,23 +147,6 @@
       border: 1px solid #e5e5e5 !important;
       color: #a3a3a3;
     }
-    #cards .card-photos-row {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 0.4rem;
-    }
-    #cards .card-photo-link {
-      display: block;
-      flex: 1;
-      min-width: 0;
-    }
-    #cards .card-photo-thumb {
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      object-fit: cover;
-      border-radius: 0.5rem;
-      display: block;
-    }
     #cards .memo-photo-thumb {
       width: 72px;
       height: 72px;
@@ -222,7 +205,7 @@
     <a id="list-link" href="./" style="display:none" class="block w-full mb-6 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-center text-sm">保存した名刺の一覧を見る</a>
     <div id="list-ui" style="display:none">
       <button id="backup-btn" class="w-full mb-4 px-6 py-3 bg-gradient-to-r from-rose-400 to-orange-400 text-white rounded-2xl font-bold shadow-lg hover:from-rose-500 hover:to-orange-500 active:scale-95 transition-all text-sm">合言葉を発行して他の端末とも同期する</button>
-      <a id="paper-card-link" href="./paper-card.html" style="display:none" class="block w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm text-center hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺を登録</a>
+      <a id="paper-card-link" href="./paper-card.html" style="display:none" class="block w-full mb-4 px-6 py-3 bg-white border-2 border-dashed border-neutral-300 text-neutral-600 rounded-2xl font-bold text-sm text-center hover:border-rose-300 hover:text-rose-500 transition-colors">📇 紙の名刺</a>
       <div class="flex flex-col sm:flex-row gap-2 mb-4">
         <input id="search" type="text" placeholder="名前・タグ・メモで検索" class="flex-1 px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
         <select id="sort" class="px-4 py-2.5 bg-white/80 backdrop-blur border border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-rose-400 transition-all">
@@ -486,7 +469,10 @@
     }
 
     function renderCards() {
-      const filtered = filterAndSort(allBookmarks, searchEl.value, sortEl.value);
+      // 紙の名刺（url無し・写真のみ）は一覧に混ぜず、別ページ(paper-card.html)側で
+      // 一覧・登録の両方を扱う
+      const withoutPaperCards = allBookmarks.filter((b) => b.url || !b.frontPhotoUrl);
+      const filtered = filterAndSort(withoutPaperCards, searchEl.value, sortEl.value);
       cardsEl.innerHTML = '';
       for (const b of filtered) {
         const card = document.createElement('div');
@@ -498,14 +484,6 @@
         if (b.url && isSafeHttpUrl(b.url)) {
           const link = document.createElement('a');
           link.href = b.url;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.textContent = linkText;
-          row.appendChild(link);
-        } else if (b.frontPhotoUrl) {
-          // 紙の名刺（URLなし・写真のみ）は表面写真を開くリンクにする
-          const link = document.createElement('a');
-          link.href = b.frontPhotoUrl;
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
           link.textContent = linkText;
@@ -577,27 +555,6 @@
             }
           });
         });
-
-        // 紙の名刺の表裏写真（合言葉で同期している場合のみ）
-        if (syncMode === 'pocket' && (b.frontPhotoUrl || b.backPhotoUrl)) {
-          const cardPhotosRow = document.createElement('div');
-          cardPhotosRow.className = 'card-photos-row';
-          [['表', b.frontPhotoUrl], ['裏', b.backPhotoUrl]].forEach(([label, url]) => {
-            if (!url) return;
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.className = 'card-photo-link';
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = label + '面';
-            img.className = 'card-photo-thumb';
-            link.appendChild(img);
-            cardPhotosRow.appendChild(link);
-          });
-          card.appendChild(cardPhotosRow);
-        }
 
         // ひとことメモ（後から編集可能）
         const memoRow = document.createElement('div');
