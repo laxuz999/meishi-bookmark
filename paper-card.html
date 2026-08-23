@@ -328,6 +328,19 @@
       return list.filter(isPaperCard);
     }
 
+    // 削除・タグ編集・メモ編集の直前にサーバーの最新一覧を取り直してから
+    // mutateを適用して保存する。ページを開いた時点のallBookmarksをそのまま
+    // 使って上書き保存すると、その後に他端末/他タブで追加・変更された分が
+    // 巻き戻ってしまうため（新規登録の保存処理と同じ考え方）
+    async function saveWithRefetch(code, mutate) {
+      const remote = await getBookmarks(code);
+      if (!remote.success) throw new Error(remote.error || '最新の一覧の取得に失敗しました');
+      const updated = mutate(remote.bookmarks);
+      const res = await saveBookmarks(code, updated);
+      if (!res.success) throw new Error(res.error || '保存に失敗しました');
+      return updated;
+    }
+
     function renderPaperCards() {
       const list = paperCardsOnly(allBookmarks);
       paperListStatus.style.display = list.length ? 'none' : 'block';
@@ -350,9 +363,9 @@
           if (!(await appConfirm(`「${target}」を削除します。よろしいですか？`))) return;
           try {
             const code = getCode();
-            const updated = allBookmarks.filter((x) => x !== b);
-            const res = await saveBookmarks(code, updated);
-            if (!res.success) throw new Error(res.error || '削除に失敗しました');
+            const updated = await saveWithRefetch(code, (list) =>
+              list.filter((x) => x.frontPhotoUrl !== b.frontPhotoUrl)
+            );
             allBookmarks = updated;
             renderPaperCards();
           } catch (err) {
@@ -424,9 +437,9 @@
             const newTags = input.value.split(',').map((t) => t.trim()).filter(Boolean);
             try {
               const code = getCode();
-              const updated = allBookmarks.map((x) => (x === b ? { ...x, tags: newTags } : x));
-              const res = await saveBookmarks(code, updated);
-              if (!res.success) throw new Error(res.error || 'タグの保存に失敗しました');
+              const updated = await saveWithRefetch(code, (list) =>
+                list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, tags: newTags } : x))
+              );
               allBookmarks = updated;
               renderPaperCards();
             } catch (err) {
@@ -476,9 +489,9 @@
             const newMemo = textarea.value.trim();
             try {
               const code = getCode();
-              const updated = allBookmarks.map((x) => (x === b ? { ...x, memo: newMemo } : x));
-              const res = await saveBookmarks(code, updated);
-              if (!res.success) throw new Error(res.error || 'メモの保存に失敗しました');
+              const updated = await saveWithRefetch(code, (list) =>
+                list.map((x) => (x.frontPhotoUrl === b.frontPhotoUrl ? { ...x, memo: newMemo } : x))
+              );
               allBookmarks = updated;
               renderPaperCards();
             } catch (err) {
@@ -521,10 +534,18 @@
       paperCardBackBtn.textContent = '📷 裏面を撮影・選択（任意）';
       paperCardSaveBtn.disabled = false;
       paperCardSaveBtn.textContent = '登録する';
-      googleLinkNotice.style.display = 'block';
-      paperCardForm.style.display = 'none';
       googleLinkBtn.disabled = false;
       googleLinkBtn.textContent = 'Googleと連携する';
+      // 同じセッション内で既にGoogle連携済み（有効なトークンをキャッシュ済み）なら
+      // 2枚目以降の登録で毎回連携し直しにならないよう、案内をスキップして
+      // 直接フォームを開く
+      if (window.__accessToken) {
+        googleLinkNotice.style.display = 'none';
+        paperCardForm.style.display = 'block';
+      } else {
+        googleLinkNotice.style.display = 'block';
+        paperCardForm.style.display = 'none';
+      }
     }
 
     paperCardOpenBtn.addEventListener('click', () => {
