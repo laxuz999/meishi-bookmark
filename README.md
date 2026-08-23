@@ -1,11 +1,12 @@
 # NEXUA名刺ポケット
 
-NEXUAの名刺URLを保存して一覧で見返せるツール。
+NEXUAの名刺URLを保存して一覧で見返せるツール。紙の名刺を写真で登録することもできる。
 
 - 本番サイト: https://laxuz999.github.io/meishi-bookmark/
 - **基本**: 「保存」を押すと認証なしでその端末のブラウザ内（localStorage）に即保存。1タップで完結し、誰でもすぐ使える
 - **オプション（合言葉方式）**: 一覧画面の「合言葉を発行して他の端末とも同期する」から、新しく8桁の合言葉を発行するか、既に持っている合言葉を入力すると、他の端末とも同じ名刺一覧を共有できる。合言葉を発行すると、名刺のテキスト情報（名前・URL・タグ・メモ）はNEXUA運営が管理するサーバー（`gas-backend/`、GAS Web App + スプレッドシート）に保存される。仕組みの詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`を参照
-- **一時停止中**: 紙の名刺の登録・メモへの写真添付機能は、上記の合言葉方式への移行に伴い現在利用できません（今後作り直して復活予定）
+- **紙の名刺**（`paper-card.html`）: 合言葉を発行している場合のみ、一覧画面の「📇 紙の名刺」から利用可能。名前・タグ・メモに加えて表面・裏面の写真を撮影・登録できる。一覧表示・検索・タグメモの編集・削除もこのページで完結する。写真はユーザー自身のGoogleアカウント（Google Drive、`drive.file`スコープ）に保存され、バックエンドにはその写真へのリンクだけが保存される（リンクは「知っている人は誰でも閲覧可」の設定になる）
+- **バックアップ**: 一覧画面の「💾 バックアップを書き出す（JSON）」から、現在表示中の名刺データをJSONファイルとしてダウンロードできる（インポート機能は無い）
 
 ### 注意: iPhoneでホーム画面に追加する場合
 
@@ -40,6 +41,8 @@ npm test
 4. 発行されたデプロイURLを `src/pocketApi.js` の `API_URL` に設定
 5. 初回`issue_code`実行時、データ保存用のスプレッドシート（「NEXUA名刺ポケット 合言葉データ」）が`SpreadsheetApp.create()`で自動作成される。そのIDはScript Properties（`PropertiesService`）の`SPREADSHEET_ID`に保存される
 
-保存されるのは名刺のテキスト情報（url/name/tags/memo）のみ。写真は現在この同期の対象外（機能自体が一時停止中）。
+スプレッドシートに保存されるのは名刺のテキスト情報（url/name/tags/memo）と、紙の名刺の写真URL（frontPhotoUrl/backPhotoUrl、Google Drive上のリンク）。写真の実体はGAS backend側には一切送られず、常にユーザー自身のGoogleアカウントに直接アップロードされる。
+
+`get_bookmarks`/`save_bookmarks`は合言葉ごとに1分あたり30回までのレート制限がある（`CacheService`、超過時は`RATE_LIMITED`エラー）。
 
 設計の経緯・詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`を参照。
