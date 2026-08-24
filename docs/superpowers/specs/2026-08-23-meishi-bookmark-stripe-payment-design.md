@@ -79,3 +79,9 @@
 - 2026-08-23: 初版作成。ユーザーとの相談で価格(¥300)・決済方式(Payment Links)・受け渡し方法(完了ページ自動表示)・既存データの扱い(全削除)を確定
 - 2026-08-23: 実装計画(`docs/superpowers/plans/2026-08-23-meishi-bookmark-stripe-payment.md`)に基づき、Subagent-Driven Developmentでコード実装を完了。`gas-backend/Code.gs`にStripe API疎通ヘルパー・`claim_code`アクション・Webhook処理(冪等化・実在確認・ロック)を追加し`issue_code`を廃止、`gas-backend/backend.test.js`の全テストを新フローに合わせて書き換え。`src/pocketApi.js`の`claimCode()`追加・`issueCode()`削除。`index.html`のボタン導線をStripe Payment Linksへの遷移に変更し、`payment-complete.html`を新設。全てレビュー済み・GAS backend(clasp deploy @11)およびGitHub Pagesへのデプロイ済み。
   - **未実施（このコミット時点）**: 運用セットアップ(1) `STRIPE_API_KEY`のスクリプトプロパティ設定、(2) GASエディタでの`script.external_request`スコープ承認、(3) Stripeダッシュボードでの決済リンクの決済後リダイレクト設定、(4) StripeダッシュボードでのWebhookエンドポイント登録、(5) `users`シートのリセット、(6) 実機での実決済E2E確認。これらが完了するまで、コードは本番に存在するが決済フロー自体はまだ機能しない（`STRIPE_API_KEY`未設定のため`stripeApiGet`が例外を投げ、Webhookが失敗する）
+- 2026-08-24: 運用セットアップ(1)〜(6)を全て完了し、実機で¥300決済〜合言葉受け取りまでのE2Eを確認。躓いた点と対処：
+  - GASエディタへのブラウザアクセスが、実オーナーアカウント含め全アカウントで「アクセス権が必要です」となり続けた。原因は自動化ツール用の別ブラウザプロファインだったことで、ユーザーが普段使いの通常ブラウザで同じURLを開いたところ問題なくアクセスできた。
+  - `script.external_request`スコープの承認は、GASエディタ上で該当スコープを使う関数を一度手動実行し、確認ダイアログを許可することでのみ可能（`clasp run`ではExecution API側の別の権限不足エラーとなり不可）。承認後は`clasp deploy`で新しいバージョンとして再デプロイしないと、既存のWebアプリデプロイには反映されない。
+  - `STRIPE_API_KEY`の設定作業中、実際のAPIキーが会話に誤って露出する事故が発生。以降は「ユーザーが自分のターミナルで直接実行し、Claudeには値を見せない」運用に切り替えた。
+  - 最終的に`STRIPE_API_KEY`の保存値の前後に全角括弧が混入するミスがあり、Stripe APIから「Invalid API Key」と判定されていた。原因特定には、保存値の文字コード・長さのみを返す一時診断エンドポイント（値そのものは返さない設計）を使用。
+  - `STRIPE_API_KEY`設定・usersシートリセット等は、GASのWeb App（`ANYONE_ANONYMOUS`で既に公開デプロイ済み、Googleアカウント認証不要）にトークン保護付きの一時エンドポイントを都度追加し、使用後は毎回削除・gitにコミットせず本番から除去、という方式で実施した。
