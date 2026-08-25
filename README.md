@@ -2,7 +2,7 @@
 
 NEXUAの名刺URLを保存して一覧で見返せるツール。紙の名刺を写真で登録することもできる。
 
-- 本番サイト: https://laxuz999.github.io/meishi-bookmark/
+- 本番サイト: https://pocket.nexua.tech/
 - **基本**: 「保存」を押すと認証なしでその端末のブラウザ内（localStorage）に即保存。1タップで完結し、誰でもすぐ使える
 - **オプション（合言葉方式・有料）**: 一覧画面の「合言葉を発行して他の端末とも同期する」から、Stripe決済（¥300・買い切り、1回のみ）を経て新しく8桁の合言葉を発行するか、既に持っている合言葉を入力すると、他の端末とも同じ名刺一覧を共有できる。決済完了後は`payment-complete.html`が自動的に合言葉を表示する。合言葉を発行すると、名刺のテキスト情報（名前・URL・タグ・メモ）はNEXUA運営が管理するサーバー（`gas-backend/`、GAS Web App + スプレッドシート）に保存される。仕組みの詳細は`docs/superpowers/specs/2026-08-22-meishi-bookmark-pin-auth-design.md`（土台の設計）と`docs/superpowers/specs/2026-08-23-meishi-bookmark-stripe-payment-design.md`（決済化の設計）を参照
 - **S-NEXUA 撮影名刺**（`paper-card.html`、紙の名刺を写真で登録する機能）: 合言葉を発行している場合のみ、一覧画面の「📇 S-NEXUA 撮影名刺」から利用可能。名前・タグ・メモに加えて表面・裏面の写真を撮影・登録できる。一覧表示・検索・タグメモの編集・削除もこのページで完結する。写真はユーザー自身のGoogleアカウント（Google Drive、`drive.file`スコープ）に保存され、バックエンドにはその写真へのリンクだけが保存される（リンクは「知っている人は誰でも閲覧可」の設定になる）
