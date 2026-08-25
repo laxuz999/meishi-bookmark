@@ -23,6 +23,15 @@ iOS（Safari/Chrome）でこのページをホーム画面に追加する手順:
 
 静的サイトなのでビルド不要。`index.html`を直接開くか、`npx serve`等でローカル確認。
 
+## フロントエンドのデプロイ（GitHub Pages）
+
+`main`ブランチへのpushでGitHub Pagesが自動反映する。カスタムドメイン(`pocket.nexua.tech`)は以下の構成:
+
+- リポジトリ直下の`CNAME`ファイル（内容: `pocket.nexua.tech`）
+- ConoHaのDNSに`pocket`→`laxuz999.github.io`のCNAMEレコード
+- GitHub側の「Custom domain」設定は`CNAME`ファイルのpushだけでは自動反映されない。`gh api -X PUT repos/laxuz999/meishi-bookmark/pages -f cname=pocket.nexua.tech`で明示的に設定して初めてSSL証明書が発行される（この操作にはリポジトリのAdmin権限が必要）
+- HTTPS強制は`gh api -X PUT repos/laxuz999/meishi-bookmark/pages -F https_enforced=true`で有効化済み
+
 ## テスト
 
 ```
