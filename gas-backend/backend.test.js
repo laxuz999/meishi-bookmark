@@ -56,6 +56,7 @@ beforeEach(() => {
   scriptProps['STRIPE_API_KEY'] = 'sk_test_dummy';
   const cacheStore = new Map(); // CacheServiceが永続的に保存するデータ（TTLは無視し常に保持する簡易モック）
   const fetchCalls = []; // UrlFetchApp.fetchに渡されたurl/optionsの記録（Authorizationヘッダー検証用）
+  const sentEmails = []; // MailApp.sendEmailに渡された引数の記録（管理者通知の検証用）
 
   const createMockSpreadsheet = () => ({
     sheets: {},
@@ -119,6 +120,13 @@ beforeEach(() => {
       MimeType: { JSON: 1 },
     },
     Utilities: { getUuid: () => crypto.randomUUID() },
+    sentEmails,
+    MailApp: {
+      sendEmail: (to, subject, body) => { sentEmails.push({ to, subject, body }); },
+    },
+    Session: {
+      getEffectiveUser: () => ({ getEmail: () => 'admin@example.com' }),
+    },
     Math, Date, JSON, Array, String, Number,
   };
   vm.createContext(sandbox);
@@ -563,6 +571,36 @@ test('handleStripeWebhook: 未登録(実在しない)イベントIDは拒否す�
   const res = postWebhook({ id: 'evt_forged' });
   assert.equal(res.success, false);
   assert.match(res.error, /verification failed/);
+});
+
+test('handleStripeWebhook: イベント検証失敗時、運営に管理者通知メールが送られる', () => {
+  postWebhook({ id: 'evt_forged_notify' });
+  assert.equal(sandbox.sentEmails.length, 1);
+  assert.equal(sandbox.sentEmails[0].to, 'admin@example.com');
+  assert.match(sandbox.sentEmails[0].subject, /決済確認が失敗/);
+  assert.match(sandbox.sentEmails[0].body, /evt_forged_notify/);
+});
+
+test('handleStripeWebhook: handleCheckoutCompleted失敗時、運営に管理者通知メールが送られる', () => {
+  const eventId = 'evt_test_notify_fail';
+  registerStripeEvent({
+    id: eventId,
+    type: 'checkout.session.completed',
+    data: { object: { id: 'cs_test_notify_fail', mode: 'payment', payment_status: 'paid', amount_total: 300, currency: 'jpy' } },
+  });
+  vm.runInContext('handleCheckoutCompleted = function() { throw new Error("simulated failure"); }', sandbox);
+
+  postWebhook({ id: eventId });
+
+  assert.equal(sandbox.sentEmails.length, 1);
+  assert.equal(sandbox.sentEmails[0].to, 'admin@example.com');
+  assert.match(sandbox.sentEmails[0].subject, /合言葉の発行に失敗/);
+  assert.match(sandbox.sentEmails[0].body, /simulated failure/);
+});
+
+test('handleStripeWebhook: 正常に処理できた場合は管理者通知メールを送らない', () => {
+  issueTestCode();
+  assert.equal(sandbox.sentEmails.length, 0);
 });
 
 test('handleStripeWebhook: eventId無しはエラー', () => {

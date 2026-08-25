@@ -309,6 +309,20 @@ function handleCheckoutCompleted(session) {
   CacheService.getScriptCache().put(CLAIM_CODE_CACHE_PREFIX + session.id, result.code, CLAIM_CODE_CACHE_TTL_SECONDS);
 }
 
+// Webhook処理で「決済されたのに合言葉発行が失敗する」という重大な障害が起きた際、
+// 運営（GAS実行アカウント自身）に即座にメール通知する。Stripe側は配信ログを
+// 見ない限り気づけず、実際に2026-08-24の実機テストで発覚まで数時間かかった。
+// 通知自体の失敗はWebhook応答を止めない（ログに残すのみ）
+function notifyAdminOfWebhookFailure(subject, detail) {
+  try {
+    const to = Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    MailApp.sendEmail(to, '[NEXUA名刺ポケット] ' + subject, detail);
+  } catch (err) {
+    console.error('[stripe webhook] admin notification failed: ' + err.message);
+  }
+}
+
 // Webhook本体: 冪等化 → Stripe APIで実在確認 → ロックして反映
 // （NEXUA本体gas_backend.jsのhandleStripeWebhookと同じ設計）
 function handleStripeWebhook(raw) {
@@ -327,10 +341,18 @@ function handleStripeWebhook(raw) {
     event = stripeApiGet('events/' + eventId);
   } catch (err) {
     console.error('[stripe webhook] verification failed for eventId=' + eventId + ': ' + err.message);
+    notifyAdminOfWebhookFailure(
+      '決済確認が失敗しました',
+      'eventId: ' + eventId + '\nエラー: ' + err.message + '\n\nStripe APIキーの失効・権限不足等が考えられます。至急確認してください。'
+    );
     return { success: false, error: 'verification failed: ' + err.message };
   }
   if (!event || event.id !== eventId) {
     console.error('[stripe webhook] event verification mismatch for eventId=' + eventId);
+    notifyAdminOfWebhookFailure(
+      'イベント検証に失敗しました',
+      'eventId: ' + eventId + '\n\nStripeから受信したイベントIDと、Stripe APIから取得したイベントの内容が一致しませんでした。至急確認してください。'
+    );
     return { success: false, error: 'event verification mismatch' };
   }
 
@@ -357,6 +379,10 @@ function handleStripeWebhook(raw) {
     return { success: true };
   } catch (err) {
     console.error('[stripe webhook] handleCheckoutCompleted failed for eventId=' + eventId + ' type=' + event.type + ': ' + err.message);
+    notifyAdminOfWebhookFailure(
+      '決済は完了していますが合言葉の発行に失敗しました',
+      'eventId: ' + eventId + '\nイベント種別: ' + event.type + '\nエラー: ' + err.message + '\n\nお客様は決済済みで合言葉を受け取れていません。至急対応してください。'
+    );
     return { success: false, error: err.message };
   } finally {
     lock.releaseLock();

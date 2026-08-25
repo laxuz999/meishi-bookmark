@@ -48,6 +48,7 @@
 - `LockService.getScriptLock()`で排他制御してから合言葉発行・シート書き込み
 - **買い切り固有の検証**: `session.mode === 'payment'`（`'subscription'`ではないこと）、`session.amount_total === 300`（想定外の金額での不正処理を防ぐ）を確認してから処理する
 - Webhookレスポンスは`HtmlService.createHtmlOutput()`で返す（`ContentService`は302リダイレクトを挟みStripeのWebhook配信が失敗扱いになるため）
+- **管理者通知**: イベント検証失敗・`handleCheckoutCompleted`失敗（＝決済は完了しているのに合言葉発行に失敗した場合）に、`MailApp.sendEmail()`でGAS実行アカウント自身（`Session.getEffectiveUser().getEmail()`）へ即座にメール通知する。Stripeの配信ログを能動的に見ない限り気づけない障害を、運営が放置しないための対策（2026-08-24の実機テストで実際に発生し、発覚まで数時間かかった経緯を踏まえて追加）。通知自体の失敗はログのみでWebhook応答は止めない
 
 ### レート制限
 
